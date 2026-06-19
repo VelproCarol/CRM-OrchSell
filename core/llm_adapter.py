@@ -499,3 +499,14 @@ def get_llm() -> LLMAdapter:
     if _llm_adapter is None:
         _llm_adapter = LLMAdapter()
     return _llm_adapter
+
+
+def get_llm_adapter() -> LLMAdapter:
+    """
+    获取全局 LLM 适配器实例（单例模式）
+    与 get_llm() 相同，提供统一的接口名
+    
+    Returns:
+        LLMAdapter 实例
+    """
+    return get_llm()

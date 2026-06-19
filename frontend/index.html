@@ -1068,150 +1068,89 @@
             const resultDiv = document.getElementById('dbQueryResult');
             
             if (result.status !== 'success') {
-                resultDiv.innerHTML = `<div class="db-empty" style="color: #f44336;">查询失败: ${result.detail || result.message}</div>`;
+                let html = `<div class="db-empty" style="color: #f44336;">查询失败: ${result.detail || result.message}</div>`;
+                if (result.generated_sql) {
+                    html += `<div style="margin-top: 10px; padding: 10px; background: #fff3e0; border-radius: 4px; font-size: 12px;">
+                        <strong style="color: #f57c00;">生成的SQL:</strong><br/>
+                        <code>${result.generated_sql}</code>
+                    </div>`;
+                }
+                resultDiv.innerHTML = html;
                 return;
             }
             
-            const { query_type, data, count, message } = result;
+            const { query_text, intent, generated_sql, columns, data, count } = result;
             
             if (count === 0) {
-                resultDiv.innerHTML = `<div class="db-empty">未找到相关数据</div>`;
+                let html = `<div class="db-empty">未找到相关数据</div>`;
+                if (intent) {
+                    html = `<p style="margin: 10px 0; color: #666;"><strong>意图解析:</strong> ${intent}</p>` + html;
+                }
+                resultDiv.innerHTML = html;
                 return;
             }
             
-            let html = `<p style="margin: 10px 0; color: #666;">查询类型: ${query_type}，找到 ${count} 条记录</p>`;
+            // 构建结果头部（意图解析和生成的 SQL）
+            let html = '';
             
-            if (message) {
-                html += `<p style="margin: 5px 0 10px; color: #999; font-size: 12px;">${message}</p>`;
+            if (intent) {
+                html += `
+                    <div style="margin-bottom: 15px; padding: 12px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
+                        <strong style="color: #1976d2;">意图解析:</strong> ${intent}
+                    </div>
+                `;
             }
             
-            // 根据查询类型渲染不同格式
-            if (query_type === 'inventory') {
-                html += '<div class="db-inventory-card">';
-                data.forEach(item => {
-                    html += `
-                        <div class="db-inventory-item">
-                            <h4>${item.product_name}</h4>
-                            <div class="data-row">
-                                <span class="data-label">SKU</span>
-                                <span class="data-value">${item.product_sku}</span>
-                            </div>
-                            <div class="data-row">
-                                <span class="data-label">总库存</span>
-                                <span class="data-value">${item.stock_quantity} ${item.unit}</span>
-                            </div>
-                            <div class="data-row">
-                                <span class="data-label">可用库存</span>
-                                <span class="data-value" style="color: #4caf50;">${item.available_quantity} ${item.unit}</span>
-                            </div>
-                            <div class="data-row">
-                                <span class="data-label">已预订</span>
-                                <span class="data-value">${item.reserved_quantity} ${item.unit}</span>
-                            </div>
-                            <div class="data-row">
-                                <span class="data-label">备货周期</span>
-                                <span class="data-value">${item.lead_time}</span>
-                            </div>
-                            <div class="data-row">
-                                <span class="data-label">仓库</span>
-                                <span class="data-value">${item.warehouse_location}</span>
-                            </div>
+            if (generated_sql) {
+                html += `
+                    <div style="margin-bottom: 15px; padding: 12px; background: #f5f5f5; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <strong style="color: #333;">生成的 SQL 语句</strong>
+                            <button onclick="copySql('${generated_sql}')" style="padding: 4px 10px; font-size: 12px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer;">复制</button>
                         </div>
-                    `;
-                });
-                html += '</div>';
-            } else if (query_type === 'product' || query_type === 'price') {
+                        <code style="display: block; font-size: 13px; color: #d32f2f; word-break: break-all;">${generated_sql}</code>
+                    </div>
+                `;
+            }
+            
+            html += `<p style="margin: 10px 0; color: #666;">查询: "${query_text}"，找到 <strong>${count}</strong> 条记录</p>`;
+            
+            // 渲染表格
+            if (columns && columns.length > 0 && data && data.length > 0) {
                 html += `
                     <table class="db-result-table">
                         <thead>
                             <tr>
-                                <th>产品SKU</th>
-                                <th>产品名称</th>
-                                <th>分类</th>
-                                <th>单价</th>
-                                <th>单位</th>
+                                ${columns.map(col => `<th>${col}</th>`).join('')}
                             </tr>
                         </thead>
                         <tbody>
                 `;
-                data.forEach(p => {
-                    html += `
-                        <tr>
-                            <td>${p.product_sku}</td>
-                            <td>${p.product_name}</td>
-                            <td>${p.category || '-'}</td>
-                            <td>${p.base_price ? p.base_price.toFixed(2) : '-'} CNY</td>
-                            <td>${p.unit || '-'}</td>
-                        </tr>
-                    `;
+                
+                data.forEach(row => {
+                    html += '<tr>';
+                    columns.forEach(col => {
+                        const value = row[col];
+                        const formattedValue = typeof value === 'number' && !Number.isInteger(value) 
+                            ? value.toFixed(2) 
+                            : value;
+                        html += `<td>${formattedValue || '-'}</td>`;
+                    });
+                    html += '</tr>';
                 });
+                
                 html += '</tbody></table>';
-            } else if (query_type === 'customer') {
-                html += `
-                    <table class="db-result-table">
-                        <thead>
-                            <tr>
-                                <th>客户ID</th>
-                                <th>客户名称</th>
-                                <th>行业</th>
-                                <th>联系人</th>
-                                <th>电话</th>
-                                <th>信用等级</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-                data.forEach(c => {
-                    html += `
-                        <tr>
-                            <td>${c.customer_id}</td>
-                            <td>${c.customer_name}</td>
-                            <td>${c.industry || '-'}</td>
-                            <td>${c.contact_person || '-'}</td>
-                            <td>${c.contact_phone || '-'}</td>
-                            <td>${c.credit_level || '-'}</td>
-                        </tr>
-                    `;
-                });
-                html += '</tbody></table>';
-            } else if (query_type === 'deal') {
-                html += `
-                    <table class="db-result-table">
-                        <thead>
-                            <tr>
-                                <th>订单号</th>
-                                <th>产品</th>
-                                <th>客户</th>
-                                <th>数量</th>
-                                <th>单价</th>
-                                <th>总价</th>
-                                <th>折扣</th>
-                                <th>成交日期</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-                data.forEach(d => {
-                    html += `
-                        <tr>
-                            <td>${d.deal_id}</td>
-                            <td>${d.product_name}</td>
-                            <td>${d.customer_name || '-'}</td>
-                            <td>${d.quantity}</td>
-                            <td>${d.unit_price ? d.unit_price.toFixed(2) : '-'}</td>
-                            <td>${d.total_amount ? d.total_amount.toFixed(2) : '-'}</td>
-                            <td>${d.discount_rate ? (d.discount_rate * 100).toFixed(1) + '%' : '-'}</td>
-                            <td>${d.deal_date || '-'}</td>
-                        </tr>
-                    `;
-                });
-                html += '</tbody></table>';
-            } else {
-                // 默认表格展示
-                html += `<div class="json-viewer">${JSON.stringify(data, null, 2)}</div>`;
             }
             
             resultDiv.innerHTML = html;
+        }
+        
+        function copySql(sql) {
+            navigator.clipboard.writeText(sql).then(() => {
+                alert('SQL 已复制到剪贴板');
+            }).catch(err => {
+                console.error('复制失败:', err);
+            });
         }
     </script>
 </body>
