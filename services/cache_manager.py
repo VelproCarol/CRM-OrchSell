@@ -20,6 +20,7 @@ class CacheManager:
         """初始化缓存管理器"""
         self._client = None
         self._enabled = settings.REDIS_ENABLED
+        self._memory_cache = {}  # 始终初始化内存缓存作为后备
         
         if self._enabled:
             try:
@@ -28,7 +29,6 @@ class CacheManager:
             except Exception as e:
                 logger.error(f"Redis 连接失败，将使用内存缓存: {str(e)}")
                 self._enabled = False
-                self._memory_cache = {}
     
     def _init_redis(self):
         """初始化 Redis 客户端"""

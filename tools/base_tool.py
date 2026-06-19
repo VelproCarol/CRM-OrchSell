@@ -85,6 +85,30 @@ class BaseTool(ABC):
         """
         return True
     
+    def sync_execute(self, **kwargs) -> Dict[str, Any]:
+        """
+        同步执行工具（封装异步调用）
+        
+        Args:
+            **kwargs: 工具参数
+            
+        Returns:
+            工具执行结果字典
+        """
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            # 在已运行的 event loop 中，使用 run_in_executor
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, self.execute(**kwargs))
+                return future.result()
+        except RuntimeError:
+            # 没有运行的 event loop，使用 asyncio.run
+            return asyncio.run(self.execute(**kwargs))
+        except Exception as e:
+            return self._handle_error(e)
+    
     def get_tool_schema(self) -> Dict[str, Any]:
         """
         获取工具 Schema（用于 LlamaIndex 工具调用）

@@ -64,6 +64,40 @@ class StatsResponse(BaseModel):
     avg_response_time: float = Field(..., description="平均响应时间(ms)")
 
 
+class DbQueryRequest(BaseModel):
+    """
+    数据库查询请求模型（只读）
+    """
+    query_text: str = Field(..., description="查询描述文本，如'查一下工业风机的库存'", min_length=1)
+    query_type: Optional[str] = Field(None, description="查询类型：inventory|product|price|customer|deal")
+
+
+class ProductListItem(BaseModel):
+    """
+    产品列表项
+    """
+    product_sku: str
+    product_name: str
+    category: str
+    base_price: float
+    unit: str
+    description: Optional[str] = None
+
+
+class InventoryItem(BaseModel):
+    """
+    库存查询项
+    """
+    product_name: str
+    product_sku: str
+    stock_quantity: int
+    available_quantity: int
+    reserved_quantity: int
+    lead_time: str
+    warehouse_location: str
+    unit: str
+
+
 # ==================== 全局变量 ====================
 
 # Agent 实例（延迟初始化）
@@ -285,6 +319,291 @@ async def init_database():
             status_code=500,
             detail=f"初始化失败: {str(e)}"
         )
+
+
+# ==================== 数据库只读查询接口 ====================
+
+@router.get("/api/db/products", response_model=list[ProductListItem])
+async def get_product_list():
+    """
+    获取产品列表接口（只读）
+    
+    Returns:
+        产品列表
+    """
+    try:
+        import sqlite3
+        from config.settings import settings
+        
+        db_path = Path(settings.SQLITE_DB_PATH)
+        if not db_path.exists():
+            raise HTTPException(status_code=404, detail="数据库文件不存在，请先初始化")
+        
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT product_sku, product_name, category, base_price, unit, description
+            FROM products
+            ORDER BY category, product_name
+        """)
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        products = [
+            ProductListItem(
+                product_sku=row["product_sku"],
+                product_name=row["product_name"],
+                category=row["category"],
+                base_price=row["base_price"],
+                unit=row["unit"],
+                description=row["description"]
+            )
+            for row in rows
+        ]
+        
+        logger.info(f"产品列表查询成功，共 {len(products)} 条记录")
+        return products
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"产品列表查询失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+
+
+@router.get("/api/db/inventory/{product_name}", response_model=InventoryItem)
+async def get_inventory(product_name: str):
+    """
+    获取产品库存接口（只读）
+    
+    Args:
+        product_name: 产品名称
+        
+    Returns:
+        库存信息
+    """
+    try:
+        from tools.api_inventory_tool import ApiInventoryTool
+        
+        tool = ApiInventoryTool()
+        result = await tool.execute(product_name=product_name)
+        
+        if result.get("success") is False:
+            raise HTTPException(status_code=404, detail=result.get("error", "库存查询失败"))
+        
+        logger.info(f"库存查询成功: {product_name}")
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"库存查询失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+
+
+@router.post("/api/db/query")
+async def query_database(request: DbQueryRequest):
+    """
+    数据库自然语言查询接口（只读）
+    类似 NL2SQL，根据查询描述返回相应数据
+    
+    Args:
+        request: 查询请求
+        
+    Returns:
+        查询结果
+    """
+    try:
+        import sqlite3
+        from config.settings import settings
+        from tools.api_inventory_tool import ApiInventoryTool
+        
+        db_path = Path(settings.SQLITE_DB_PATH)
+        if not db_path.exists():
+            raise HTTPException(status_code=404, detail="数据库文件不存在，请先初始化")
+        
+        query_text = request.query_text.lower()
+        query_type = request.query_type or ""
+        
+        # 根据查询内容判断查询类型
+        if "库存" in query_text or "库存" in query_type:
+            # 库存查询
+            product_name = None
+            keywords = ["工业风机", "离心泵", "压缩机", "电机", "阀门", "锅炉", "变压器", "开关柜"]
+            for kw in keywords:
+                if kw in query_text:
+                    product_name = kw
+                    break
+            
+            if not product_name:
+                # 返回所有产品库存概览
+                tool = ApiInventoryTool()
+                all_inventory = []
+                for kw in keywords:
+                    try:
+                        result = tool.sync_execute(product_name=kw)
+                        if result.get("status") != "error":
+                            all_inventory.append(result)
+                    except:
+                        pass
+                return {
+                    "status": "success",
+                    "query_type": "inventory",
+                    "query_text": request.query_text,
+                    "data": all_inventory,
+                    "count": len(all_inventory)
+                }
+            
+            tool = ApiInventoryTool()
+            result = tool.sync_execute(product_name=product_name)
+            return {
+                "status": "success",
+                "query_type": "inventory",
+                "query_text": request.query_text,
+                "data": [result] if result.get("status") != "error" else [],
+                "count": 1
+            }
+            
+        elif "产品" in query_text or "sku" in query_text or "product" in query_type:
+            # 产品列表查询
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # 支持产品名称模糊匹配
+            like_pattern = f"%{query_text}%"
+            cursor.execute("""
+                SELECT product_sku, product_name, category, base_price, unit, description
+                FROM products
+                WHERE product_name LIKE ? OR category LIKE ? OR product_sku LIKE ?
+                ORDER BY category, product_name
+            """, (like_pattern, like_pattern, like_pattern))
+            
+            rows = cursor.fetchall()
+            conn.close()
+            
+            products = [dict(row) for row in rows]
+            return {
+                "status": "success",
+                "query_type": "product",
+                "query_text": request.query_text,
+                "data": products,
+                "count": len(products)
+            }
+            
+        elif "价格" in query_text or "报价" in query_text:
+            # 价格查询
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            like_pattern = f"%{query_text}%"
+            cursor.execute("""
+                SELECT product_sku, product_name, category, base_price, unit
+                FROM products
+                WHERE product_name LIKE ? OR category LIKE ?
+                ORDER BY base_price
+            """, (like_pattern, like_pattern))
+            
+            rows = cursor.fetchall()
+            conn.close()
+            
+            products = [dict(row) for row in rows]
+            return {
+                "status": "success",
+                "query_type": "price",
+                "query_text": request.query_text,
+                "data": products,
+                "count": len(products)
+            }
+            
+        elif "客户" in query_text or "customer" in query_type:
+            # 客户查询
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            like_pattern = f"%{query_text}%"
+            cursor.execute("""
+                SELECT customer_id, customer_name, industry, contact_person, contact_phone, credit_level
+                FROM customers
+                WHERE customer_name LIKE ? OR industry LIKE ? OR customer_id LIKE ?
+                ORDER BY customer_name
+            """, (like_pattern, like_pattern, like_pattern))
+            
+            rows = cursor.fetchall()
+            conn.close()
+            
+            customers = [dict(row) for row in rows]
+            return {
+                "status": "success",
+                "query_type": "customer",
+                "query_text": request.query_text,
+                "data": customers,
+                "count": len(customers)
+            }
+            
+        elif "成交" in query_text or "订单" in query_text or "deal" in query_type:
+            # 历史成交记录查询
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            like_pattern = f"%{query_text}%"
+            cursor.execute("""
+                SELECT deal_id, product_name, customer_name, quantity, unit_price, total_amount, 
+                       discount_rate, payment_terms, deal_date, sales_person
+                FROM deal_records
+                WHERE product_name LIKE ? OR customer_name LIKE ? OR deal_id LIKE ?
+                ORDER BY deal_date DESC
+                LIMIT 50
+            """, (like_pattern, like_pattern, like_pattern))
+            
+            rows = cursor.fetchall()
+            conn.close()
+            
+            deals = [dict(row) for row in rows]
+            return {
+                "status": "success",
+                "query_type": "deal",
+                "query_text": request.query_text,
+                "data": deals,
+                "count": len(deals)
+            }
+            
+        else:
+            # 默认返回产品列表
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT product_sku, product_name, category, base_price, unit
+                FROM products
+                ORDER BY category, product_name
+            """)
+            
+            rows = cursor.fetchall()
+            conn.close()
+            
+            products = [dict(row) for row in rows]
+            return {
+                "status": "success",
+                "query_type": "default",
+                "query_text": request.query_text,
+                "data": products,
+                "count": len(products),
+                "message": "默认返回产品列表，请尝试包含'库存''价格''客户''成交'等关键词"
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"数据库查询失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
 
 
 # ==================== 异常处理 ====================
