@@ -9,6 +9,7 @@ from loguru import logger
 
 from tools.base_tool import BaseTool
 from config.settings import settings, Constants
+from services.cache_manager import get_cache_manager
 
 
 class SqlPriceTool(BaseTool):
@@ -48,13 +49,27 @@ class SqlPriceTool(BaseTool):
             if not product_name:
                 return self._handle_error(ValueError("产品名称不能为空"))
             
-            # 查询历史成交价格
-            price_data = await self._query_price_data(
-                product_name=product_name,
-                quantity_range=kwargs.get("quantity_range"),
-                payment_terms=kwargs.get("payment_terms"),
-                time_range=kwargs.get("time_range", "6个月")
-            )
+            # 构建缓存键（包含数量区间）
+            quantity_range = kwargs.get("quantity_range")
+            range_key = f"{quantity_range[0]}-{quantity_range[1]}" if quantity_range else None
+            
+            # 尝试从缓存获取数据
+            cache_manager = get_cache_manager()
+            cached_data = cache_manager.get_pricing(product_name, range_key)
+            if cached_data:
+                logger.info(f"从缓存获取价格数据，产品: {product_name}")
+                price_data = cached_data
+            else:
+                # 查询历史成交价格
+                price_data = await self._query_price_data(
+                    product_name=product_name,
+                    quantity_range=quantity_range,
+                    payment_terms=kwargs.get("payment_terms"),
+                    time_range=kwargs.get("time_range", "6个月")
+                )
+                
+                # 将结果存入缓存
+                cache_manager.set_pricing(product_name, price_data, range_key)
             
             logger.info(f"价格查询成功，产品: {product_name}, 平均价格: {price_data.get('avg_price')}")
             return self._success_response(price_data)

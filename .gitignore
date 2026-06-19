@@ -156,6 +156,10 @@ dmypy.json
 *.seed
 *.pid.lock
 
+# 调试相关文件
+.dbg/
+.dbg/*
+debug-*.md
 
-项目需求文档
+# 项目需求文档
 docs/

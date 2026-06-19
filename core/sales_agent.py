@@ -12,14 +12,17 @@ from core.llm_adapter import get_llm, LLMAdapter
 from core.task_planner import TaskPlanner
 from core.tool_dispatcher import ToolDispatcher
 from core.reflection_engine import ReflectionEngine
-from core.output_schema import (
+from schemas.output_schema import (
     SalesResponse,
     InventoryInfo,
     PricingInfo,
     CaseInfo,
     ProposalInfo,
-    TaskLog
+    TaskLog,
+    CustomerProfile,
+    FollowUpRecord
 )
+from services.customer_service import get_customer_service, CustomerService
 
 
 class SalesAgent:
@@ -194,7 +197,7 @@ class SalesAgent:
         product_category: Optional[str]
     ) -> SalesResponse:
         """
-        构建响应数据
+        构建响应数据（增强版：添加客户画像和跟进记录）
         
         Args:
             context: 工具返回的上下文数据
@@ -205,6 +208,9 @@ class SalesAgent:
         Returns:
             销售响应
         """
+        # 获取客户服务
+        customer_service = get_customer_service()
+        
         # 构建库存信息
         inventory_info = None
         if Constants.TASK_INVENTORY_QUERY in context:
@@ -247,6 +253,49 @@ class SalesAgent:
                     similarity_score=case.get("similarity_score")
                 ))
         
+        # 获取客户画像信息
+        customer_profile_info = None
+        recent_follow_ups_info: List[FollowUpRecord] = []
+        
+        if customer_id:
+            logger.info(f"获取客户画像信息: {customer_id}")
+            customer_summary = customer_service.get_customer_summary(customer_id)
+            if customer_summary:
+                # 构建客户画像
+                profile_data = customer_summary.get("profile", {})
+                customer_profile_info = CustomerProfile(
+                    customer_id=profile_data.get("customer_id", ""),
+                    customer_name=profile_data.get("customer_name"),
+                    industry=profile_data.get("industry"),
+                    company_size=profile_data.get("company_size"),
+                    customer_level=profile_data.get("customer_level"),
+                    contact_person=profile_data.get("contact_person"),
+                    contact_phone=profile_data.get("contact_phone"),
+                    email=profile_data.get("email"),
+                    address=profile_data.get("address"),
+                    total_purchase_amount=profile_data.get("total_purchase_amount", 0.0),
+                    purchase_count=profile_data.get("purchase_count", 0),
+                    last_purchase_date=profile_data.get("last_purchase_date"),
+                    credit_rating=profile_data.get("credit_rating"),
+                    tags=profile_data.get("tags", []),
+                    created_at=profile_data.get("created_at"),
+                    updated_at=profile_data.get("updated_at")
+                )
+                
+                # 构建跟进记录
+                follow_up_records = customer_summary.get("recent_follow_ups", [])
+                for record in follow_up_records[:5]:  # 最多取5条
+                    recent_follow_ups_info.append(FollowUpRecord(
+                        record_id=record.get("record_id", ""),
+                        customer_id=record.get("customer_id", ""),
+                        follow_up_type=record.get("follow_up_type", ""),
+                        content=record.get("content", ""),
+                        result=record.get("result"),
+                        next_follow_up_date=record.get("next_follow_up_date"),
+                        created_by=record.get("created_by"),
+                        created_at=record.get("created_at")
+                    ))
+        
         # 生成销售方案
         proposal = await self._generate_proposal(
             inventory_info=inventory_info,
@@ -254,7 +303,8 @@ class SalesAgent:
             cases_info=cases_info,
             customer_id=customer_id,
             query=query,
-            product_category=product_category
+            product_category=product_category,
+            customer_profile=customer_profile_info
         )
         
         return SalesResponse(
@@ -264,6 +314,8 @@ class SalesAgent:
             pricing=pricing_info,
             cases=cases_info,
             proposal=proposal,
+            customer_profile=customer_profile_info,
+            recent_follow_ups=recent_follow_ups_info,
             customer_id=customer_id,
             query=query,
             product_category=product_category
@@ -276,7 +328,8 @@ class SalesAgent:
         cases_info: List[CaseInfo],
         customer_id: Optional[str],
         query: str,
-        product_category: Optional[str]
+        product_category: Optional[str],
+        customer_profile: Optional[CustomerProfile] = None
     ) -> Optional[ProposalInfo]:
         """
         生成销售方案
@@ -338,6 +391,7 @@ class SalesAgent:
         try:
             # 提取 JSON 块
             json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+            
             if json_match:
                 json_str = json_match.group(1)
             else:

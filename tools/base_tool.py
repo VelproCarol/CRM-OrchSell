@@ -9,6 +9,38 @@ from loguru import logger
 from config.settings import settings
 
 
+class ToolResult:
+    """
+    工具执行结果封装类
+    """
+    
+    def __init__(self, success: bool, message: str, data: Dict[str, Any] = None):
+        """
+        初始化工具执行结果
+        
+        Args:
+            success: 是否成功
+            message: 结果消息
+            data: 数据字典
+        """
+        self.success = success
+        self.message = message
+        self.data = data or {}
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        转换为字典
+        
+        Returns:
+            结果字典
+        """
+        return {
+            "success": self.success,
+            "message": self.message,
+            "data": self.data
+        }
+
+
 class BaseTool(ABC):
     """
     工具抽象基类

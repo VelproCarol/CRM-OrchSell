@@ -8,7 +8,7 @@ import asyncio
 from loguru import logger
 
 from config.settings import settings, Constants
-from core.output_schema import TaskPlan, TaskLog
+from schemas.output_schema import TaskPlan, TaskLog
 
 
 class ToolDispatcher:

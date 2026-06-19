@@ -48,6 +48,42 @@ class CaseInfo(BaseModel):
     similarity_score: Optional[float] = Field(None, description="相似度得分")
 
 
+class CustomerProfile(BaseModel):
+    """
+    客户画像信息模型
+    """
+    customer_id: str = Field(..., description="客户ID")
+    customer_name: Optional[str] = Field(None, description="客户名称")
+    industry: Optional[str] = Field(None, description="所属行业")
+    company_size: Optional[str] = Field(None, description="公司规模")
+    customer_level: Optional[str] = Field(None, description="客户等级(A/B/C/D)")
+    contact_person: Optional[str] = Field(None, description="联系人")
+    contact_phone: Optional[str] = Field(None, description="联系电话")
+    email: Optional[str] = Field(None, description="邮箱")
+    address: Optional[str] = Field(None, description="地址")
+    total_purchase_amount: float = Field(default=0.0, description="累计采购金额")
+    purchase_count: int = Field(default=0, description="采购次数")
+    last_purchase_date: Optional[str] = Field(None, description="最近采购日期")
+    credit_rating: Optional[str] = Field(None, description="信用评级")
+    tags: List[str] = Field(default_factory=list, description="标签列表")
+    created_at: Optional[str] = Field(None, description="创建时间")
+    updated_at: Optional[str] = Field(None, description="更新时间")
+
+
+class FollowUpRecord(BaseModel):
+    """
+    跟进记录信息模型
+    """
+    record_id: str = Field(..., description="记录ID")
+    customer_id: str = Field(..., description="客户ID")
+    follow_up_type: str = Field(..., description="跟进类型(call/meeting/email/wechat/other)")
+    content: str = Field(..., description="跟进内容")
+    result: Optional[str] = Field(None, description="跟进结果")
+    next_follow_up_date: Optional[str] = Field(None, description="下次跟进日期")
+    created_by: Optional[str] = Field(None, description="创建人")
+    created_at: Optional[str] = Field(None, description="创建时间")
+
+
 class ProposalInfo(BaseModel):
     """
     销售方案信息模型
@@ -117,6 +153,10 @@ class SalesResponse(BaseModel):
     pricing: Optional[PricingInfo] = Field(None, description="价格信息")
     cases: List[CaseInfo] = Field(default_factory=list, description="相似案例列表")
     proposal: Optional[ProposalInfo] = Field(None, description="销售方案")
+    
+    # 客户画像信息
+    customer_profile: Optional[CustomerProfile] = Field(None, description="客户画像")
+    recent_follow_ups: List[FollowUpRecord] = Field(default_factory=list, description="最近跟进记录")
     
     # 反思验真报告
     reflection_report: Optional[ReflectionReport] = Field(None, description="反思验真报告")

@@ -8,6 +8,7 @@ from loguru import logger
 
 from tools.base_tool import BaseTool
 from config.settings import settings, Constants
+from services.cache_manager import get_cache_manager
 
 
 class DocRetrieveTool(BaseTool):
@@ -56,16 +57,28 @@ class DocRetrieveTool(BaseTool):
                 payment_terms=kwargs.get("payment_terms")
             )
             
+            # 尝试从缓存获取数据
+            cache_manager = get_cache_manager()
+            cached_data = cache_manager.get_case(query_text)
+            if cached_data:
+                logger.info(f"从缓存获取案例数据，查询: {query_text}")
+                return self._success_response(cached_data)
+            
             # 检索相似案例
             cases = await self._retrieve_cases(query_text, top_k)
             
-            logger.info(f"文档检索成功，产品: {product_name}, 找到 {len(cases)} 个案例")
-            return self._success_response({
+            result = {
                 "product_name": product_name,
                 "query_text": query_text,
                 "cases": cases,
                 "total_count": len(cases)
-            })
+            }
+            
+            # 将结果存入缓存
+            cache_manager.set_case(query_text, result)
+            
+            logger.info(f"文档检索成功，产品: {product_name}, 找到 {len(cases)} 个案例")
+            return self._success_response(result)
             
         except Exception as e:
             return self._handle_error(e)

@@ -45,6 +45,32 @@ class Settings(BaseSettings):
     # ==================== 工具配置 ====================
     TOOL_TIMEOUT: int = Field(default=30, description="工具调用超时时间(秒)")
     
+    # ==================== 缓存配置 ====================
+    REDIS_ENABLED: bool = Field(default=False, description="是否启用 Redis 缓存")
+    REDIS_HOST: str = Field(default="localhost", description="Redis 服务器地址")
+    REDIS_PORT: int = Field(default=6379, description="Redis 端口")
+    REDIS_DB: int = Field(default=0, description="Redis 数据库编号")
+    REDIS_PASSWORD: Optional[str] = Field(default=None, description="Redis 密码")
+    CACHE_TTL_INVENTORY: int = Field(default=3600, description="库存缓存有效期(秒)")
+    CACHE_TTL_PRICING: int = Field(default=7200, description="价格缓存有效期(秒)")
+    CACHE_TTL_CASES: int = Field(default=86400, description="案例缓存有效期(秒)")
+    
+    # ==================== 限流配置 ====================
+    RATE_LIMIT_ENABLED: bool = Field(default=True, description="是否启用请求限流")
+    RATE_LIMIT_MAX_REQUESTS: int = Field(default=100, description="每分钟最大请求数")
+    RATE_LIMIT_STORAGE_URI: str = Field(default="memory://", description="限流存储后端")
+    
+    # ==================== 公司信息配置 ====================
+    COMPANY_NAME: str = Field(default="XX科技有限公司", description="公司名称")
+    COMPANY_ADDRESS: str = Field(default="北京市朝阳区科技园区", description="公司地址")
+    COMPANY_PHONE: str = Field(default="400-888-8888", description="公司电话")
+    COMPANY_EMAIL: str = Field(default="sales@example.com", description="公司邮箱")
+    
+    # ==================== 企业微信配置 ====================
+    WECHAT_CORP_ID: Optional[str] = Field(default=None, description="企业微信企业ID")
+    WECHAT_APP_SECRET: Optional[str] = Field(default=None, description="企业微信应用密钥")
+    WECHAT_AGENT_ID: int = Field(default=0, description="企业微信应用ID")
+    
     # ==================== 反思验真配置 ====================
     REFLECTION_ENABLED: bool = Field(default=True, description="是否启用反思验真")
     REFLECTION_CONFIDENCE_THRESHOLD: float = Field(default=0.8, description="反思验真置信度阈值")
@@ -142,6 +168,7 @@ class Constants:
     TOOL_API_INVENTORY = "api_inventory"
     TOOL_SQL_PRICE = "sql_price"
     TOOL_DOC_RETRIEVE = "doc_retrieve"
+    TOOL_WECHAT_NOTIFY = "wechat_notify"
     
     # 反思验真状态
     REFLECTION_PASSED = "passed"

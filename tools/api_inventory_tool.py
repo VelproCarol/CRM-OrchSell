@@ -8,6 +8,7 @@ from loguru import logger
 
 from tools.base_tool import BaseTool
 from config.settings import settings, Constants
+from services.cache_manager import get_cache_manager
 
 
 class ApiInventoryTool(BaseTool):
@@ -91,12 +92,22 @@ class ApiInventoryTool(BaseTool):
             if not product_name:
                 return self._handle_error(ValueError("产品名称不能为空"))
             
-            # 模拟调用 CRM 库存接口
-            if settings.USE_MOCK_DATA:
-                inventory_data = self._mock_api_call(product_name)
+            # 尝试从缓存获取数据
+            cache_manager = get_cache_manager()
+            cached_data = cache_manager.get_inventory(product_name)
+            if cached_data:
+                logger.info(f"从缓存获取库存数据，产品: {product_name}")
+                inventory_data = cached_data
             else:
-                # 实际 API 调用（需要配置真实 CRM 接口）
-                inventory_data = await self._real_api_call(product_name)
+                # 模拟调用 CRM 库存接口
+                if settings.USE_MOCK_DATA:
+                    inventory_data = self._mock_api_call(product_name)
+                else:
+                    # 实际 API 调用（需要配置真实 CRM 接口）
+                    inventory_data = await self._real_api_call(product_name)
+                
+                # 将结果存入缓存
+                cache_manager.set_inventory(product_name, inventory_data)
             
             # 检查库存是否满足需求
             required_quantity = kwargs.get("quantity", 0)

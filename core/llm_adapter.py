@@ -75,13 +75,23 @@ class OpenAIAdapter(BaseLLMAdapter):
             self._use_mock = True
         else:
             self._use_mock = False
-            self.llm = OpenAI(
-                model=self.model_name,
-                api_key=self.api_key,
-                api_base=self.api_base,
-                temperature=0.7
-            )
-            logger.info(f"OpenAI 适配器初始化完成，模型: {self.model_name}, API Base: {self.api_base}")
+            
+            # 检查是否是智谱 AI 的 API（通过 API base URL 判断）
+            is_zhipu_api = "bigmodel.cn" in self.api_base or "zhipu" in self.api_base
+            
+            if is_zhipu_api:
+                # 智谱 AI 直接使用 openai 库，不通过 LlamaIndex
+                logger.info(f"智谱 AI 适配器初始化完成，模型: {self.model_name}, API Base: {self.api_base}")
+                self.llm = None  # 不使用 LlamaIndex 的 LLM 对象
+            else:
+                # 标准 OpenAI API
+                self.llm = OpenAI(
+                    model=self.model_name,
+                    api_key=self.api_key,
+                    api_base=self.api_base,
+                    temperature=0.7
+                )
+                logger.info(f"OpenAI 适配器初始化完成，模型: {self.model_name}, API Base: {self.api_base}")
     
     async def chat(
         self,
@@ -105,23 +115,45 @@ class OpenAIAdapter(BaseLLMAdapter):
             return self._mock_response(messages)
         
         try:
-            from llama_index.core.llms import ChatMessage
+            # 检查是否是智谱 AI
+            is_zhipu_api = "bigmodel.cn" in self.api_base or "zhipu" in self.api_base
             
-            # 转换消息格式
-            chat_messages = [
-                ChatMessage(role=msg["role"], content=msg["content"])
-                for msg in messages
-            ]
-            
-            # 调用模型
-            response = await self.llm.achat(
-                messages=chat_messages,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-            
-            logger.debug(f"OpenAI 响应: {response.message.content[:100]}...")
-            return response.message.content
+            if is_zhipu_api:
+                # 使用智谱 AI 的 API（直接使用 openai 库）
+                from openai import AsyncOpenAI
+                client = AsyncOpenAI(api_key=self.api_key, base_url=self.api_base)
+                
+                response = await client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                
+                content = response.choices[0].message.content
+                logger.debug(f"智谱 AI 响应: {content[:100]}...")
+                
+                return content
+            else:
+                # 标准 OpenAI API
+                from llama_index.core.llms import ChatMessage
+                
+                # 转换消息格式
+                chat_messages = [
+                    ChatMessage(role=msg["role"], content=msg["content"])
+                    for msg in messages
+                ]
+                
+                # 调用模型
+                response = await self.llm.achat(
+                    messages=chat_messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                
+                logger.debug(f"OpenAI 响应: {response.message.content[:100]}...")
+                
+                return response.message.content
             
         except Exception as e:
             logger.error(f"OpenAI 调用失败: {str(e)}")

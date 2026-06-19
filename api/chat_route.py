@@ -13,7 +13,7 @@ from pathlib import Path
 
 from config.settings import settings, Constants
 from core.sales_agent import SalesAgent
-from core.output_schema import SalesResponse, ErrorResponse
+from schemas.output_schema import SalesResponse, ErrorResponse
 from tools import (
     CalculatorTool,
     ApiInventoryTool,

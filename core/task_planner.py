@@ -9,7 +9,7 @@ from loguru import logger
 
 from config.settings import settings, Constants
 from core.llm_adapter import get_llm
-from core.output_schema import TaskPlan
+from schemas.output_schema import TaskPlan
 
 
 class TaskPlanner:
