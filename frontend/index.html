@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>销售 Agent 调试页面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .input-section {
+            margin-bottom: 30px;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .input-group input,
+        .input-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .input-group input:focus,
+        .input-group textarea:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+        
+        .input-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .result-section {
+            margin-top: 30px;
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .result-header h2 {
+            color: #333;
+            font-size: 24px;
+        }
+        
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .status-success {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .status-partial {
+            background: #ff9800;
+            color: white;
+        }
+        
+        .status-error {
+            background: #f44336;
+            color: white;
+        }
+        
+        .result-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .result-content {
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 200px;
+        }
+        
+        .result-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .result-card h3 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        
+        .result-card .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .result-card .data-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .result-card .data-value {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .json-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        
+        .task-log {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .task-log-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
+        .task-log-status {
+            padding: 4px 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .task-completed {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .task-failed {
+            background: #f44336;
+            color: white;
+        }
+        
+        .task-running {
+            background: #2196f3;
+            color: white;
+        }
+        
+        .examples {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 10px;
+        }
+        
+        .examples h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .example-item {
+            background: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border: 1px solid #e0e0e0;
+            transition: all 0.3s;
+        }
+        
+        .example-item:hover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>可编排多工具销售任务拆解 Agent</h1>
+            <p>智能拆解销售全流程子任务，调度多数据源工具，生成定制销售方案</p>
+        </div>
+        
+        <div class="input-section">
+            <div class="input-group">
+                <label for="customerId">客户 ID（可选）</label>
+                <input type="text" id="customerId" placeholder="例如: C001">
+            </div>
+            
+            <div class="input-group">
+                <label for="productCategory">产品品类（可选）</label>
+                <input type="text" id="productCategory" placeholder="例如: 工业风机">
+            </div>
+            
+            <div class="input-group">
+                <label for="query">客户咨询内容</label>
+                <textarea id="query" placeholder="例如: 采购50台工业风机，想要30天账期，对比往期大客户成交价，给一套合作方案"></textarea>
+            </div>
+            
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="submitQuery()">生成销售方案</button>
+                <button class="btn btn-secondary" onclick="clearForm()">清空</button>
+                <button class="btn btn-secondary" onclick="initDatabase()">初始化数据库</button>
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>正在生成销售方案...</p>
+        </div>
+        
+        <div class="result-section hidden" id="resultSection">
+            <div class="result-header">
+                <h2>销售方案结果</h2>
+                <span class="status-badge" id="statusBadge"></span>
+            </div>
+            
+            <div class="result-tabs">
+                <div class="tab active" onclick="switchTab('summary')">方案摘要</div>
+                <div class="tab" onclick="switchTab('inventory')">库存信息</div>
+                <div class="tab" onclick="switchTab('pricing')">价格信息</div>
+                <div class="tab" onclick="switchTab('cases')">相似案例</div>
+                <div class="tab" onclick="switchTab('reflection')">反思验真</div>
+                <div class="tab" onclick="switchTab('logs')">任务日志</div>
+                <div class="tab" onclick="switchTab('json')">完整 JSON</div>
+            </div>
+            
+            <div class="result-content" id="resultContent"></div>
+        </div>
+        
+        <div class="examples">
+            <h3>示例查询</h3>
+            <div class="example-item" onclick="useExample(1)">
+                采购50台工业风机，想要30天账期，对比往期大客户成交价，给一套合作方案
+            </div>
+            <div class="example-item" onclick="useExample(2)">
+                采购100台电机，预算控制在12万以内，需要快速交货
+            </div>
+            <div class="example-item" onclick="useExample(3)">
+                采购20台离心泵，用于化工流程改造，需要技术方案和报价
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentResult = null;
+        
+        async function submitQuery() {
+            const customerId = document.getElementById('customerId').value;
+            const productCategory = document.getElementById('productCategory').value;
+            const query = document.getElementById('query').value;
+            
+            if (!query) {
+                alert('请输入客户咨询内容');
+                return;
+            }
+            
+            // 显示加载状态
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('resultSection').classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/chat/sales', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        customer_id: customerId || null,
+                        product_category: productCategory || null,
+                        query: query
+                    })
+                });
+                
+                const result = await response.json();
+                currentResult = result;
+                
+                // 显示结果
+                displayResult(result);
+                
+            } catch (error) {
+                alert('请求失败: ' + error.message);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+        
+        function displayResult(result) {
+            document.getElementById('resultSection').classList.remove('hidden');
+            
+            // 更新状态徽章
+            const statusBadge = document.getElementById('statusBadge');
+            statusBadge.textContent = result.status === 'success' ? '成功' : 
+                                      result.status === 'partial' ? '部分成功' : '失败';
+            statusBadge.className = 'status-badge status-' + result.status;
+            
+            // 默认显示摘要
+            switchTab('summary');
+        }
+        
+        function switchTab(tabName) {
+            // 更新标签样式
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                if (tab.textContent.includes(getTabTitle(tabName))) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+            
+            // 更新内容
+            const content = document.getElementById('resultContent');
+            
+            switch (tabName) {
+                case 'summary':
+                    content.innerHTML = renderSummary();
+                    break;
+                case 'inventory':
+                    content.innerHTML = renderInventory();
+                    break;
+                case 'pricing':
+                    content.innerHTML = renderPricing();
+                    break;
+                case 'cases':
+                    content.innerHTML = renderCases();
+                    break;
+                case 'reflection':
+                    content.innerHTML = renderReflection();
+                    break;
+                case 'logs':
+                    content.innerHTML = renderLogs();
+                    break;
+                case 'json':
+                    content.innerHTML = renderJson();
+                    break;
+            }
+        }
+        
+        function getTabTitle(tabName) {
+            const titles = {
+                'summary': '方案摘要',
+                'inventory': '库存信息',
+                'pricing': '价格信息',
+                'cases': '相似案例',
+                'reflection': '反思验真',
+                'logs': '任务日志',
+                'json': '完整 JSON'
+            };
+            return titles[tabName] || '';
+        }
+        
+        function renderSummary() {
+            if (!currentResult || !currentResult.proposal) {
+                return '<p>暂无方案数据</p>';
+            }
+            
+            const proposal = currentResult.proposal;
+            return `
+                <div class="result-card">
+                    <h3>方案摘要</h3>
+                    <p>${proposal.summary}</p>
+                </div>
+                <div class="result-card">
+                    <h3>定价策略</h3>
+                    <p>${proposal.pricing_strategy}</p>
+                </div>
+                <div class="result-card">
+                    <h3>库存保障</h3>
+                    <p>${proposal.inventory_assurance}</p>
+                </div>
+                <div class="result-card">
+                    <h3>付款建议</h3>
+                    <p>${proposal.payment_recommendation}</p>
+                </div>
+                <div class="result-card">
+                    <h3>竞争优势</h3>
+                    <p>${proposal.competitive_advantage}</p>
+                </div>
+                <div class="result-card">
+                    <h3>后续行动</h3>
+                    <ul>${proposal.next_steps.map(step => `<li>${step}</li>`).join('')}</ul>
+                </div>
+                ${proposal.risk_warnings.length > 0 ? `
+                <div class="result-card">
+                    <h3>风险提示</h3>
+                    <ul>${proposal.risk_warnings.map(warning => `<li>${warning}</li>`).join('')}</ul>
+                </div>
+                ` : ''}
+            `;
+        }
+        
+        function renderInventory() {
+            if (!currentResult || !currentResult.inventory) {
+                return '<p>暂无库存数据</p>';
+            }
+            
+            const inventory = currentResult.inventory;
+            return `
+                <div class="result-card">
+                    <h3>库存信息</h3>
+                    <div class="data-row">
+                        <span class="data-label">产品名称</span>
+                        <span class="data-value">${inventory.product_name}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">产品SKU</span>
+                        <span class="data-value">${inventory.product_sku || '未知'}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">库存总量</span>
+                        <span class="data-value">${inventory.stock_quantity}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">可用库存</span>
+                        <span class="data-value">${inventory.available_quantity}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">备货周期</span>
+                        <span class="data-value">${inventory.lead_time}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">仓库位置</span>
+                        <span class="data-value">${inventory.warehouse_location || '未知'}</span>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderPricing() {
+            if (!currentResult || !currentResult.pricing) {
+                return '<p>暂无价格数据</p>';
+            }
+            
+            const pricing = currentResult.pricing;
+            return `
+                <div class="result-card">
+                    <h3>价格信息</h3>
+                    <div class="data-row">
+                        <span class="data-label">单价</span>
+                        <span class="data-value">${pricing.unit_price.toFixed(2)} ${pricing.currency}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">总价</span>
+                        <span class="data-value">${pricing.total_price.toFixed(2)} ${pricing.currency}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">折扣率</span>
+                        <span class="data-value">${(pricing.discount_rate * 100).toFixed(1)}%</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">付款条件</span>
+                        <span class="data-value">${pricing.payment_terms}</span>
+                    </div>
+                    ${pricing.discount_reason ? `
+                    <div class="data-row">
+                        <span class="data-label">折扣原因</span>
+                        <span class="data-value">${pricing.discount_reason}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        function renderCases() {
+            if (!currentResult || !currentResult.cases || currentResult.cases.length === 0) {
+                return '<p>暂无案例数据</p>';
+            }
+            
+            return currentResult.cases.map(caseItem => `
+                <div class="result-card">
+                    <h3>案例 ${caseItem.case_id}</h3>
+                    <div class="data-row">
+                        <span class="data-label">客户名称</span>
+                        <span class="data-value">${caseItem.customer_name || '未知'}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">行业</span>
+                        <span class="data-value">${caseItem.industry || '未知'}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">采购数量</span>
+                        <span class="data-value">${caseItem.quantity}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">成交单价</span>
+                        <span class="data-value">${caseItem.deal_price.toFixed(2)} CNY</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">付款条件</span>
+                        <span class="data-value">${caseItem.payment_terms}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">成交日期</span>
+                        <span class="data-value">${caseItem.deal_date || '未知'}</span>
+                    </div>
+                    ${caseItem.similarity_score ? `
+                    <div class="data-row">
+                        <span class="data-label">相似度</span>
+                        <span class="data-value">${(caseItem.similarity_score * 100).toFixed(1)}%</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+        
+        function renderReflection() {
+            if (!currentResult || !currentResult.reflection_report) {
+                return '<p>反思验真未启用</p>';
+            }
+            
+            const reflection = currentResult.reflection_report;
+            return `
+                <div class="result-card">
+                    <h3>反思验真报告</h3>
+                    <div class="data-row">
+                        <span class="data-label">启用状态</span>
+                        <span class="data-value">${reflection.enabled ? '已启用' : '未启用'}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">整体置信度</span>
+                        <span class="data-value">${(reflection.overall_confidence * 100).toFixed(1)}%</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">已验证字段</span>
+                        <span class="data-value">${reflection.verified_fields.join(', ') || '无'}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">未验证字段</span>
+                        <span class="data-value">${reflection.unverified_fields.join(', ') || '无'}</span>
+                    </div>
+                </div>
+                ${reflection.warnings.length > 0 ? `
+                <div class="result-card">
+                    <h3>警告信息</h3>
+                    <ul>${reflection.warnings.map(w => `<li>${w}</li>`).join('')}</ul>
+                </div>
+                ` : ''}
+                ${reflection.hallucinations_detected.length > 0 ? `
+                <div class="result-card">
+                    <h3>检测到的幻觉</h3>
+                    <ul>${reflection.hallucinations_detected.map(h => `<li>${h}</li>`).join('')}</ul>
+                </div>
+                ` : ''}
+            `;
+        }
+        
+        function renderLogs() {
+            if (!currentResult || !currentResult.task_logs || currentResult.task_logs.length === 0) {
+                return '<p>暂无任务日志</p>';
+            }
+            
+            return currentResult.task_logs.map(log => `
+                <div class="task-log">
+                    <div class="task-log-header">
+                        <span><strong>${log.task_type}</strong> - ${log.tool_name}</span>
+                        <span class="task-log-status task-${log.status}">${log.status}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">任务ID</span>
+                        <span class="data-value">${log.task_id}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="data-label">耗时</span>
+                        <span class="data-value">${log.duration_ms ? log.duration_ms + 'ms' : '未知'}</span>
+                    </div>
+                    ${log.error_message ? `
+                    <div class="data-row">
+                        <span class="data-label">错误信息</span>
+                        <span class="data-value" style="color: #f44336;">${log.error_message}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+        
+        function renderJson() {
+            if (!currentResult) {
+                return '<p>暂无数据</p>';
+            }
+            
+            const json = JSON.stringify(currentResult, null, 2);
+            return `<div class="json-viewer">${json}</div>`;
+        }
+        
+        function clearForm() {
+            document.getElementById('customerId').value = '';
+            document.getElementById('productCategory').value = '';
+            document.getElementById('query').value = '';
+            document.getElementById('resultSection').classList.add('hidden');
+            currentResult = null;
+        }
+        
+        async function initDatabase() {
+            try {
+                const response = await fetch('/api/init', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                alert(result.message || '初始化完成');
+                
+            } catch (error) {
+                alert('初始化失败: ' + error.message);
+            }
+        }
+        
+        function useExample(num) {
+            const examples = {
+                1: {
+                    query: '采购50台工业风机，想要30天账期，对比往期大客户成交价，给一套合作方案',
+                    category: '工业风机'
+                },
+                2: {
+                    query: '采购100台电机，预算控制在12万以内，需要快速交货',
+                    category: '电机'
+                },
+                3: {
+                    query: '采购20台离心泵，用于化工流程改造，需要技术方案和报价',
+                    category: '离心泵'
+                }
+            };
+            
+            const example = examples[num];
+            document.getElementById('query').value = example.query;
+            document.getElementById('productCategory').value = example.category;
+        }
+    </script>
+</body>
+</html>
