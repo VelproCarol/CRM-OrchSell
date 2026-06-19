@@ -97,7 +97,7 @@ class CalculatorTool(BaseTool):
                 "gross_profit_rate": float(gross_profit / total_price) if total_price > 0 else 0,
                 "payment_terms": payment_terms,
                 "payment_cost": float(payment_cost),
-                "net_profit": float(total_price - base_cost * quantity - payment_cost)
+                "net_profit": float(total_price - Decimal(str(base_cost)) * Decimal(str(quantity)) - payment_cost)
             }
             
             logger.info(f"计算器工具执行成功，总价: {result['total_price']}")
@@ -162,7 +162,7 @@ class CalculatorTool(BaseTool):
             总价
         """
         base_price = Decimal(str(unit_price)) * Decimal(str(quantity))
-        discounted_price = base_price * (Decimal("1") - discount_rate)
+        discounted_price = base_price * (Decimal("1") - Decimal(str(discount_rate)))
         return discounted_price
     
     def _calculate_gross_profit(

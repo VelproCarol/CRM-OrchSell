@@ -228,12 +228,15 @@ class SalesAgent:
         pricing_info = None
         if Constants.TASK_PRICE_QUERY in context:
             price_data = context[Constants.TASK_PRICE_QUERY]
+            # 从计算器工具获取总价（如果有）
+            calc_data = context.get(Constants.TASK_PRICE_CALCULATION, {})
+            
             pricing_info = PricingInfo(
                 unit_price=price_data.get("unit_price", 0.0),
-                total_price=price_data.get("total_price", 0.0),
-                discount_rate=price_data.get("discount_rate", 0.0),
+                total_price=calc_data.get("total_price", price_data.get("total_price", 0.0)),
+                discount_rate=calc_data.get("discount_rate", price_data.get("discount_rate", 0.0)),
                 discount_reason=price_data.get("discount_reason"),
-                payment_terms=price_data.get("payment_terms", "款到发货")
+                payment_terms=calc_data.get("payment_terms", price_data.get("payment_terms", "款到发货"))
             )
         
         # 构建案例信息
