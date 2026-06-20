@@ -189,6 +189,9 @@ class OpenAIAdapter(BaseLLMAdapter):
             try:
                 monitor = get_langfuse_monitor()
                 if monitor and monitor.is_enabled():
+                    # 生成 session_id（基于 trace_id 的前8位，便于关联同一会话的多个调用）
+                    session_id = trace_id[:8] if trace_id else None
+                    
                     # 记录 LLM 调用追踪
                     trace_result = monitor.trace_llm_call(
                         model=self.model_name,
@@ -197,6 +200,7 @@ class OpenAIAdapter(BaseLLMAdapter):
                         usage=usage_data,
                         latency=latency,
                         trace_id=trace_id,
+                        session_id=session_id,  # 添加 session_id
                         metadata={"adapter": "openai", "api_base": self.api_base}
                     )
                     
@@ -443,6 +447,9 @@ class QwenAdapter(BaseLLMAdapter):
             try:
                 monitor = get_langfuse_monitor()
                 if monitor and monitor.is_enabled():
+                    # 生成 session_id（基于 trace_id 的前8位，便于关联同一会话的多个调用）
+                    session_id = trace_id[:8] if trace_id else None
+                    
                     # 记录 LLM 调用追踪
                     trace_result = monitor.trace_llm_call(
                         model=self.model_name,
@@ -451,6 +458,7 @@ class QwenAdapter(BaseLLMAdapter):
                         usage=usage_data,
                         latency=latency,
                         trace_id=trace_id,
+                        session_id=session_id,  # 添加 session_id
                         metadata={"adapter": "qwen", "base_url": settings.OLLAMA_BASE_URL}
                     )
                     

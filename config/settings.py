@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # OpenAI 配置
     OPENAI_API_KEY: Optional[str] = Field(default=None, description="OpenAI API密钥")
     OPENAI_API_BASE: str = Field(default="https://api.openai.com/v1", description="OpenAI API基础URL")
-    OPENAI_MODEL: str = Field(default="gpt-3.5-turbo", description="OpenAI模型名称")
+    OPENAI_MODEL: str = Field(default="gpt-5.1", description="OpenAI模型名称")
     
     # Qwen/Ollama 配置
     OLLAMA_BASE_URL: str = Field(default="http://localhost:11434", description="Ollama服务地址")
@@ -89,8 +89,25 @@ class Settings(BaseSettings):
         description="是否使用本地 embedding 模型（True 时使用本地路径，False 从 HuggingFace 在线拉取）"
     )
     
-    # ==================== 模拟数据配置 ====================
-    USE_MOCK_DATA: bool = Field(default=True, description="是否使用模拟数据")
+    # ==================== LangFuse 监控配置 ====================
+    LANGFUSE_ENABLED: bool = Field(default=True, description="是否启用 LangFuse 监控")
+    LANGFUSE_HOST: str = Field(default="http://localhost:3000", description="LangFuse 服务地址")
+    LANGFUSE_PUBLIC_KEY: Optional[str] = Field(default=None, description="LangFuse 公钥")
+    LANGFUSE_SECRET_KEY: Optional[str] = Field(default=None, description="LangFuse 私钥")
+    LANGFUSE_TRACING_SAMPLE_RATE: float = Field(default=1.0, description="采样率")
+    
+    # ==================== 模型定价配置 ====================
+    # 智谱 AI 定价（单位：美元/1K tokens）
+    MODEL_PRICE_GLM_INPUT: float = Field(default=0.0015, description="GLM 模型输入成本")
+    MODEL_PRICE_GLM_OUTPUT: float = Field(default=0.002, description="GLM 模型输出成本")
+    
+    # OpenAI 定价
+    MODEL_PRICE_OPENAI_INPUT: float = Field(default=0.001, description="OpenAI 输入成本")
+    MODEL_PRICE_OPENAI_OUTPUT: float = Field(default=0.003, description="OpenAI 输出成本")
+    
+    # Qwen 本地模型（成本为0，因为是本地部署）
+    MODEL_PRICE_QWEN_INPUT: float = Field(default=0.0, description="Qwen 输入成本")
+    MODEL_PRICE_QWEN_OUTPUT: float = Field(default=0.0, description="Qwen 输出成本")
     
     @validator("LLM_MODE")
     def validate_llm_mode(cls, v):

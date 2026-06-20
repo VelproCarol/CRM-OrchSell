@@ -83,6 +83,45 @@ class LangFuseMonitor:
             logger.error(f"LangFuse 初始化失败: {str(e)}")
             self._enabled = False
     
+    def _calculate_cost(self, model: str, input_tokens: int, output_tokens: int) -> tuple:
+        """
+        计算模型调用成本（方式三：代码中计算）
+        
+        Args:
+            model: 模型名称
+            input_tokens: 输入 token 数
+            output_tokens: 输出 token 数
+            
+        Returns:
+            (input_cost, output_cost, total_cost) 元组
+        """
+        # 根据模型名称确定定价
+        model_lower = model.lower()
+        
+        if "glm" in model_lower or "zhipu" in model_lower:
+            # 智谱 AI 模型
+            input_rate = settings.MODEL_PRICE_GLM_INPUT
+            output_rate = settings.MODEL_PRICE_GLM_OUTPUT
+        elif "qwen" in model_lower:
+            # Qwen 本地模型（成本为0）
+            input_rate = settings.MODEL_PRICE_QWEN_INPUT
+            output_rate = settings.MODEL_PRICE_QWEN_OUTPUT
+        elif "gpt" in model_lower or "openai" in model_lower:
+            # OpenAI 模型
+            input_rate = settings.MODEL_PRICE_OPENAI_INPUT
+            output_rate = settings.MODEL_PRICE_OPENAI_OUTPUT
+        else:
+            # 默认使用 GLM 定价
+            input_rate = settings.MODEL_PRICE_GLM_INPUT
+            output_rate = settings.MODEL_PRICE_GLM_OUTPUT
+        
+        # 计算成本（美元）
+        input_cost = (input_tokens / 1000) * input_rate
+        output_cost = (output_tokens / 1000) * output_rate
+        total_cost = input_cost + output_cost
+        
+        return round(input_cost, 6), round(output_cost, 6), round(total_cost, 6)
+    
     def is_enabled(self) -> bool:
         """
         检查监控是否启用
@@ -101,7 +140,8 @@ class LangFuseMonitor:
         usage: Optional[Dict[str, int]] = None,
         latency: Optional[float] = None,
         trace_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None  # 新增参数
     ) -> Optional[Dict[str, Any]]:
         """
         追踪 LLM 调用
@@ -116,6 +156,7 @@ class LangFuseMonitor:
             latency: 延迟（秒）
             trace_id: trace ID
             user_id: 用户 ID
+            session_id: 会话 ID（用于 Sessions 面板分组）
             
         Returns:
             包含 trace_id, generation_id 和 generation 对象的字典，或 None
@@ -126,12 +167,6 @@ class LangFuseMonitor:
         
         try:
             langfuse = LangFuseMonitor._client
-            
-            # 构建 generation 输入（格式化为易读的对话格式）
-            input_text = "\n".join([
-                f"[{msg.get('role', 'user')}]: {msg.get('content', '')}"
-                for msg in messages
-            ])
             
             # 计算 start_time 和 end_time（基于 latency）
             end_time = datetime.now()
@@ -144,10 +179,11 @@ class LangFuseMonitor:
                 id=trace_id,
                 name=f"llm_call_{model}",
                 user_id=user_id,
+                session_id=session_id,  # 添加 session_id
                 metadata=metadata or {}
             )
             
-            # 构建 usage 参数（使用 OpenAI 风格的字段名）
+            # 构建 usage 参数（使用 ModelUsage 对象）
             usage_obj = None
             if usage:
                 input_tokens = usage.get('input_tokens', 0) or usage.get('promptTokens', 0) or 0
@@ -155,17 +191,22 @@ class LangFuseMonitor:
                 total_tokens = usage.get('total_tokens', 0) or usage.get('totalTokens', 0) or 0
                 
                 if input_tokens > 0 or output_tokens > 0:
-                    usage_obj = {
-                        "promptTokens": input_tokens,
-                        "completionTokens": output_tokens,
-                        "totalTokens": total_tokens
-                    }
+                    # 使用 SDK v2 的 ModelUsage 对象
+                    from langfuse.model import ModelUsage
+                    usage_obj = ModelUsage(
+                        input=input_tokens,
+                        output=output_tokens,
+                        total=total_tokens
+                    )
+            
+            # 计算成本（方式三：在代码中设置成本信息）
+            input_cost, output_cost, total_cost = self._calculate_cost(model, input_tokens, output_tokens)
             
             # 创建 generation 记录
             generation = trace.generation(
                 name=f"llm_{model}",
                 model=model,
-                input=input_text,
+                input=messages,  # 直接传递消息列表，让 SDK 处理格式
                 output=response,
                 usage=usage_obj,
                 start_time=start_time,
@@ -173,6 +214,9 @@ class LangFuseMonitor:
                 metadata={
                     "latency_seconds": latency,
                     "adapter": metadata.get("adapter", "unknown") if metadata else "unknown",
+                    "input_cost": input_cost,
+                    "output_cost": output_cost,
+                    "total_cost": total_cost,
                     **(metadata or {})
                 }
             )
