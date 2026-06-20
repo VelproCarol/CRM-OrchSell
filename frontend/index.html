@@ -427,6 +427,61 @@
             padding: 30px;
             color: #999;
         }
+
+        .model-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+            padding: 10px 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .model-selector label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .model-selector select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        .model-selector select:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+
+        .model-selector .btn-switch {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .model-selector .btn-switch:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .model-selector .current-model {
+            font-weight: 600;
+            color: #667eea;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #667eea;
+        }
     </style>
 </head>
 <body>
@@ -434,6 +489,21 @@
         <div class="header">
             <h1>可编排多工具销售任务拆解 Agent</h1>
             <p>智能拆解销售全流程子任务，调度多数据源工具，生成定制销售方案</p>
+            <div class="model-selector">
+                <label>当前模型:</label>
+                <span class="current-model" id="currentModel">加载中...</span>
+                <select id="modelSelect">
+                    <optgroup label="智谱 AI (云端)">
+                        <option value="openai/glm-4">GLM-4 (推荐)</option>
+                        <option value="openai/glm-3-turbo">GLM-3-Turbo</option>
+                        <option value="openai/glm-4-flash">GLM-4-Flash (快速)</option>
+                    </optgroup>
+                    <optgroup label="Qwen (本地 Ollama)">
+                        <option value="qwen/qwen2:7b-instruct-q4_K_M">Qwen2-7B (Q4 量化)</option>
+                    </optgroup>
+                </select>
+                <button class="btn-switch" onclick="switchModel()">切换模型</button>
+            </div>
         </div>
         
         <div class="input-section">
@@ -529,6 +599,68 @@
     
     <script>
         let currentResult = null;
+
+        // 页面加载时获取当前模型信息
+        window.onload = async function() {
+            await loadModelInfo();
+        };
+
+        async function loadModelInfo() {
+            try {
+                const response = await fetch('/api/model');
+                const data = await response.json();
+                document.getElementById('currentModel').textContent = `${data.mode.toUpperCase()} - ${data.model_name}`;
+
+                // 设置下拉框选中项
+                const select = document.getElementById('modelSelect');
+                for (let i = 0; i < select.options.length; i++) {
+                    const option = select.options[i];
+                    if (option.value === `${data.mode}/${data.model_name}`) {
+                        select.selectedIndex = i;
+                        break;
+                    }
+                }
+            } catch (error) {
+                document.getElementById('currentModel').textContent = '加载失败';
+                console.error('获取模型信息失败:', error);
+            }
+        }
+
+        async function switchModel() {
+            const select = document.getElementById('modelSelect');
+            const selectedValue = select.value;
+
+            if (!selectedValue) {
+                alert('请选择要切换的模型');
+                return;
+            }
+
+            const [mode, modelName] = selectedValue.split('/');
+
+            try {
+                const response = await fetch('/api/model/switch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        mode: mode,
+                        model_name: modelName
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    alert(`模型切换成功!\n${result.new_mode.toUpperCase()} - ${result.new_model}`);
+                    await loadModelInfo();
+                } else {
+                    alert('模型切换失败: ' + (result.detail || '未知错误'));
+                }
+            } catch (error) {
+                alert('模型切换请求失败: ' + error.message);
+            }
+        }
         
         async function submitQuery() {
             const customerId = document.getElementById('customerId').value;
@@ -622,6 +754,98 @@
             }
         }
         
+        // 字段名中文映射
+        const fieldMapping = {
+            // 库存相关
+            'stock_quantity': '库存总量',
+            'available_quantity': '可用库存',
+            'reserved_quantity': '预留库存',
+            'product_name': '产品名称',
+            'product_sku': '产品SKU',
+            'lead_time': '备货周期',
+            'warehouse_location': '仓库位置',
+            
+            // 价格相关
+            'unit_price': '单价',
+            'total_price': '总价',
+            'quantity': '采购数量',
+            'discount_rate': '折扣率',
+            'discount_reason': '折扣原因',
+            'payment_terms': '付款条件',
+            'currency': '货币单位',
+            
+            // 案例相关
+            'case_id': '案例ID',
+            'customer_name': '客户名称',
+            'industry': '行业',
+            'deal_price': '成交单价',
+            'total_amount': '成交金额',
+            'deal_date': '成交日期',
+            'similarity_score': '相似度',
+            
+            // 任务类型
+            'inventory_query': '库存查询',
+            'price_query': '价格查询',
+            'case_retrieval': '案例检索',
+            'price_calculation': '价格计算',
+            
+            // 工具名称
+            'api_inventory': 'API库存查询',
+            'sql_price': 'SQL价格查询',
+            'doc_retrieve': '文档检索',
+            'calculator': '计算器',
+            
+            // 任务状态
+            'completed': '已完成',
+            'failed': '失败',
+            'running': '运行中',
+            
+            // 反思验真字段
+            'unit_price_boundary': '单价边界',
+            'discount_rate_boundary': '折扣率边界',
+            'pricing_logic': '定价逻辑',
+            
+            // 数据库字段
+            'id': 'ID',
+            'category': '品类',
+            'base_price': '基准价格',
+            'unit': '单位',
+            'description': '描述',
+            'created_at': '创建时间',
+            'updated_at': '更新时间',
+            'customer_id': '客户ID',
+            'contact_name': '联系人',
+            'phone': '电话',
+            'email': '邮箱',
+            'company': '公司',
+            'status': '状态'
+        };
+
+        function translateField(fieldName) {
+            // 处理 case_0_quantity 这种格式
+            const caseMatch = fieldName.match(/^case_(\d+)_(.+)$/);
+            if (caseMatch) {
+                const caseNum = parseInt(caseMatch[1]) + 1;
+                const field = caseMatch[2];
+                const translatedField = fieldMapping[field] || field;
+                return `案例${caseNum}-${translatedField}`;
+            }
+            
+            return fieldMapping[fieldName] || fieldName;
+        }
+
+        function translateTaskType(taskType) {
+            return fieldMapping[taskType] || taskType;
+        }
+
+        function translateToolName(toolName) {
+            return fieldMapping[toolName] || toolName;
+        }
+
+        function translateStatus(status) {
+            return fieldMapping[status] || status;
+        }
+
         function getTabTitle(tabName) {
             const titles = {
                 'summary': '方案摘要',
@@ -634,7 +858,7 @@
             };
             return titles[tabName] || '';
         }
-        
+
         function renderSummary() {
             if (!currentResult || !currentResult.proposal) {
                 return '<p>暂无方案数据</p>';
@@ -795,6 +1019,9 @@
             }
             
             const reflection = currentResult.reflection_report;
+            const verifiedFields = reflection.verified_fields.map(f => translateField(f)).join(', ');
+            const unverifiedFields = reflection.unverified_fields.map(f => translateField(f)).join(', ');
+            
             return `
                 <div class="result-card">
                     <h3>反思验真报告</h3>
@@ -808,11 +1035,11 @@
                     </div>
                     <div class="data-row">
                         <span class="data-label">已验证字段</span>
-                        <span class="data-value">${reflection.verified_fields.join(', ') || '无'}</span>
+                        <span class="data-value">${verifiedFields || '无'}</span>
                     </div>
                     <div class="data-row">
                         <span class="data-label">未验证字段</span>
-                        <span class="data-value">${reflection.unverified_fields.join(', ') || '无'}</span>
+                        <span class="data-value">${unverifiedFields || '无'}</span>
                     </div>
                 </div>
                 ${reflection.warnings.length > 0 ? `
@@ -838,8 +1065,8 @@
             return currentResult.task_logs.map(log => `
                 <div class="task-log">
                     <div class="task-log-header">
-                        <span><strong>${log.task_type}</strong> - ${log.tool_name}</span>
-                        <span class="task-log-status task-${log.status}">${log.status}</span>
+                        <span><strong>${translateTaskType(log.task_type)}</strong> - ${translateToolName(log.tool_name)}</span>
+                        <span class="task-log-status task-${log.status}">${translateStatus(log.status)}</span>
                     </div>
                     <div class="data-row">
                         <span class="data-label">任务ID</span>
@@ -1121,7 +1348,7 @@
                     <table class="db-result-table">
                         <thead>
                             <tr>
-                                ${columns.map(col => `<th>${col}</th>`).join('')}
+                                ${columns.map(col => `<th>${translateField(col)}</th>`).join('')}
                             </tr>
                         </thead>
                         <tbody>

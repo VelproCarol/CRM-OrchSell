@@ -408,21 +408,76 @@ class LLMAdapter:
     """
     统一大模型适配器
     根据配置自动选择 OpenAI 或 Qwen
+    支持运行时动态切换
     """
     
     def __init__(self):
         """初始化适配器"""
         self._adapter: Optional[BaseLLMAdapter] = None
         self._mode = settings.LLM_MODE.lower()
-        
+
         logger.info(f"初始化大模型适配器，模式: {self._mode}")
-        
+
         if self._mode == "openai":
             self._adapter = OpenAIAdapter()
         elif self._mode == "qwen":
             self._adapter = QwenAdapter()
         else:
             raise ValueError(f"不支持的 LLM 模式: {self._mode}")
+
+    @property
+    def mode(self) -> str:
+        """获取当前模式"""
+        return self._mode
+
+    @property
+    def model_name(self) -> str:
+        """获取当前模型名称"""
+        if self._mode == "openai":
+            return settings.OPENAI_MODEL
+        else:
+            return settings.OLLAMA_MODEL
+
+    def switch_model(self, mode: str, model_name: Optional[str] = None) -> Dict[str, str]:
+        """
+        动态切换模型
+
+        Args:
+            mode: 目标模式 ("openai" 或 "qwen")
+            model_name: 可选，指定模型名称
+
+        Returns:
+            切换结果信息
+        """
+        old_mode = self._mode
+        old_model = self.model_name
+
+        if mode.lower() not in ["openai", "qwen"]:
+            raise ValueError(f"不支持的模式: {mode}，支持的模式: openai, qwen")
+
+        self._mode = mode.lower()
+
+        # 更新模型名称（如果指定）
+        if mode.lower() == "openai" and model_name:
+            settings.OPENAI_MODEL = model_name
+        elif mode.lower() == "qwen" and model_name:
+            settings.OLLAMA_MODEL = model_name
+
+        # 重新初始化适配器
+        if self._mode == "openai":
+            self._adapter = OpenAIAdapter()
+        else:
+            self._adapter = QwenAdapter()
+
+        new_model = self.model_name
+        logger.info(f"模型切换成功: {old_mode}/{old_model} -> {self._mode}/{new_model}")
+
+        return {
+            "old_mode": old_mode,
+            "old_model": old_model,
+            "new_mode": self._mode,
+            "new_model": new_model
+        }
     
     async def chat(
         self,

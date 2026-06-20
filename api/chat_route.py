@@ -2,7 +2,7 @@
 FastAPI 路由定义
 对外暴露 HTTP 接口，对接企业 CRM/ERP 系统
 """
-from typing import Optional
+from typing import Optional, Dict, List
 from fastapi import FastAPI, APIRouter, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
@@ -436,6 +436,80 @@ async def query_database(request: DbQueryRequest):
     except Exception as e:
         logger.error(f"NL2SQL 查询失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+
+
+# ==================== 模型切换接口 ====================
+
+class ModelSwitchRequest(BaseModel):
+    """模型切换请求模型"""
+    mode: str = Field(..., description="目标模式: openai 或 qwen")
+    model_name: Optional[str] = Field(None, description="可选，指定模型名称")
+
+
+class ModelInfoResponse(BaseModel):
+    """模型信息响应模型"""
+    mode: str = Field(..., description="当前模式")
+    model_name: str = Field(..., description="当前模型名称")
+    available_models: Dict[str, List[str]] = Field(..., description="可用模型列表")
+
+
+@router.get("/api/model", response_model=ModelInfoResponse)
+async def get_model_info():
+    """
+    获取当前模型信息
+
+    Returns:
+        当前模型信息
+    """
+    from core.llm_adapter import get_llm
+
+    llm = get_llm()
+
+    return ModelInfoResponse(
+        mode=llm.mode,
+        model_name=llm.model_name,
+        available_models={
+            "openai": ["glm-4", "glm-3-turbo", "glm-4-flash"],
+            "qwen": ["qwen2:7b-instruct-q4_K_M", "qwen:7b", "qwen2:14b-instruct-q4_K_M"]
+        }
+    )
+
+
+@router.post("/api/model/switch")
+async def switch_model(request: ModelSwitchRequest):
+    """
+    切换大模型
+
+    Args:
+        request: 切换请求
+
+    Returns:
+        切换结果
+    """
+    from core.llm_adapter import get_llm
+
+    llm = get_llm()
+
+    try:
+        # 如果切换到 qwen 且未指定模型，使用用户指定的 qwen2:7b-instruct-q4_K_M
+        target_model = request.model_name
+        if request.mode.lower() == "qwen" and not target_model:
+            target_model = "qwen2:7b-instruct-q4_K_M"
+
+        result = llm.switch_model(request.mode, target_model)
+
+        return {
+            "status": "success",
+            "message": f"模型切换成功: {result['old_mode']}/{result['old_model']} -> {result['new_mode']}/{result['new_model']}",
+            "new_mode": result["new_mode"],
+            "new_model": result["new_model"]
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"模型切换失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"切换失败: {str(e)}")
 
 
 # ==================== 异常处理 ====================

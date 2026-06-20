@@ -233,6 +233,7 @@ class SalesAgent:
             
             pricing_info = PricingInfo(
                 unit_price=price_data.get("unit_price", 0.0),
+                quantity=calc_data.get("quantity", 1),
                 total_price=calc_data.get("total_price", price_data.get("total_price", 0.0)),
                 discount_rate=calc_data.get("discount_rate", price_data.get("discount_rate", 0.0)),
                 discount_reason=price_data.get("discount_reason"),

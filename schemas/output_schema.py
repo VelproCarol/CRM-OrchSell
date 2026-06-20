@@ -25,6 +25,7 @@ class PricingInfo(BaseModel):
     价格信息模型
     """
     unit_price: float = Field(..., description="单价")
+    quantity: int = Field(default=1, description="采购数量")
     total_price: float = Field(..., description="总价")
     discount_rate: float = Field(default=0.0, description="折扣率")
     discount_reason: Optional[str] = Field(None, description="折扣原因")

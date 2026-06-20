@@ -617,7 +617,7 @@ class ReflectionEngine:
         
         # 第二步：业务规则校验
         logger.info("开始价格业务规则校验...")
-        logic_errors = BusinessRuleValidator.validate_pricing_logic(pricing)
+        logic_errors = BusinessRuleValidator.validate_pricing_logic(pricing, pricing.quantity)
         for error in logic_errors:
             warnings.append(f"业务规则错误: {error}")
             unverified.append("pricing_logic")
