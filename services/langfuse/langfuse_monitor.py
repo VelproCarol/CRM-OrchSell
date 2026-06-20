@@ -6,6 +6,8 @@ LangFuse 监控服务模块
 from typing import Optional, Dict, Any, List
 from contextlib import contextmanager
 from loguru import logger
+from datetime import datetime
+import time
 
 from config.settings import settings
 
@@ -36,7 +38,11 @@ class LangFuseMonitor:
         self._host = settings.LANGFUSE_HOST
         self._public_key = settings.LANGFUSE_PUBLIC_KEY
         self._secret_key = settings.LANGFUSE_SECRET_KEY
-        self._sample_rate = settings.LANGFUSE_TRACING_SAMPLE_RATE
+        
+        # 验证配置
+        if not self._public_key or not self._secret_key:
+            logger.warning("LangFuse API Keys 未配置，监控功能将禁用")
+            self._enabled = False
         
         if self._enabled:
             self._initialize_client()
@@ -59,6 +65,16 @@ class LangFuseMonitor:
             )
             
             logger.info(f"LangFuse 监控已启用，连接到: {self._host}")
+            
+            # 验证连接
+            try:
+                auth_result = LangFuseMonitor._client.auth_check()
+                if auth_result:
+                    logger.info("LangFuse API 认证成功")
+                else:
+                    logger.warning("LangFuse API 认证失败，请检查 API Keys")
+            except Exception as auth_e:
+                logger.warning(f"LangFuse API 认证检查失败: {auth_e}")
             
         except ImportError as e:
             logger.warning("未安装 langfuse SDK，LangFuse 监控功能不可用")
@@ -105,24 +121,22 @@ class LangFuseMonitor:
             generation 对象或 None
         """
         if not self.is_enabled():
+            logger.debug("LangFuse 监控未启用，跳过追踪")
             return None
         
         try:
-            from datetime import datetime
-            
             langfuse = LangFuseMonitor._client
             
-            # 构建 generation 输入
+            # 构建 generation 输入（格式化为易读的对话格式）
             input_text = "\n".join([
-                f"{msg.get('role', 'user')}: {msg.get('content', '')}"
+                f"[{msg.get('role', 'user')}]: {msg.get('content', '')}"
                 for msg in messages
             ])
             
             # 计算 start_time 和 end_time（基于 latency）
             end_time = datetime.now()
             start_time = None
-            if latency:
-                import time
+            if latency and latency > 0:
                 start_time = datetime.fromtimestamp(time.time() - latency)
             
             # 使用 SDK v2 API: trace().generation()
@@ -133,15 +147,21 @@ class LangFuseMonitor:
                 metadata=metadata or {}
             )
             
-            # 处理 usage 参数（使用 OpenAI 风格的字段名，确保兼容性）
+            # 构建 usage 参数（使用 OpenAI 风格的字段名）
             usage_obj = None
             if usage:
-                usage_obj = {
-                    "promptTokens": usage.get('input_tokens', 0) or usage.get('promptTokens', 0),
-                    "completionTokens": usage.get('output_tokens', 0) or usage.get('completionTokens', 0),
-                    "totalTokens": usage.get('total_tokens', 0) or usage.get('totalTokens', 0)
-                }
+                input_tokens = usage.get('input_tokens', 0) or usage.get('promptTokens', 0) or 0
+                output_tokens = usage.get('output_tokens', 0) or usage.get('completionTokens', 0) or 0
+                total_tokens = usage.get('total_tokens', 0) or usage.get('totalTokens', 0) or 0
+                
+                if input_tokens > 0 or output_tokens > 0:
+                    usage_obj = {
+                        "promptTokens": input_tokens,
+                        "completionTokens": output_tokens,
+                        "totalTokens": total_tokens
+                    }
             
+            # 创建 generation 记录
             generation = trace.generation(
                 name=f"llm_{model}",
                 model=model,
@@ -151,7 +171,8 @@ class LangFuseMonitor:
                 start_time=start_time,
                 end_time=end_time,
                 metadata={
-                    "latency": latency,
+                    "latency_seconds": latency,
+                    "adapter": metadata.get("adapter", "unknown") if metadata else "unknown",
                     **(metadata or {})
                 }
             )
@@ -159,11 +180,13 @@ class LangFuseMonitor:
             # 立即刷新数据到服务器
             langfuse.flush()
             
-            logger.debug(f"LLM 调用已记录到 LangFuse: trace={trace.id}, generation={generation.id}")
+            logger.info(f"LLM 调用已记录到 LangFuse: trace={trace.id}, generation={generation.id}, tokens={usage_obj}")
             return generation
             
         except Exception as e:
             logger.error(f"记录 LLM 调用到 LangFuse 失败: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
     
     @contextmanager
@@ -183,12 +206,6 @@ class LangFuseMonitor:
             metadata: 额外元数据
             trace_id: trace ID
             user_id: 用户 ID
-            
-        Usage:
-            with monitor.trace_span("task_planning") as span:
-                # 执行任务规划
-                result = await task_planner.plan(...)
-                span.update(output=result)
         """
         if not self.is_enabled():
             yield None
@@ -197,7 +214,6 @@ class LangFuseMonitor:
         try:
             langfuse = LangFuseMonitor._client
             
-            # 使用 SDK v2 API: trace().span()
             trace = langfuse.trace(
                 id=trace_id,
                 name=name,
@@ -239,7 +255,6 @@ class LangFuseMonitor:
         try:
             langfuse = LangFuseMonitor._client
             
-            # 使用 SDK v2 API: trace()
             trace = langfuse.trace(
                 name=name,
                 user_id=user_id,

@@ -5,8 +5,22 @@
 from typing import Optional, List, Dict, Any
 from abc import ABC, abstractmethod
 from loguru import logger
+import time
+import uuid
 
 from config.settings import settings
+
+
+def get_langfuse_monitor():
+    """
+    延迟导入 Langfuse 监控器，避免启动时依赖问题
+    """
+    try:
+        from services.langfuse.langfuse_monitor import get_langfuse_monitor as _get_monitor
+        return _get_monitor()
+    except ImportError:
+        logger.warning("Langfuse 监控器不可用")
+        return None
 
 
 class BaseLLMAdapter(ABC):
@@ -114,6 +128,11 @@ class OpenAIAdapter(BaseLLMAdapter):
         if self._use_mock:
             return self._mock_response(messages)
         
+        start_time = time.time()
+        trace_id = str(uuid.uuid4())
+        response_content = ""
+        usage_data = None
+        
         try:
             # 检查是否是智谱 AI
             is_zhipu_api = "bigmodel.cn" in self.api_base or "zhipu" in self.api_base
@@ -130,10 +149,14 @@ class OpenAIAdapter(BaseLLMAdapter):
                     max_tokens=max_tokens
                 )
                 
-                content = response.choices[0].message.content
-                logger.debug(f"智谱 AI 响应: {content[:100]}...")
+                response_content = response.choices[0].message.content
+                usage_data = {
+                    "input_tokens": response.usage.prompt_tokens,
+                    "output_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens
+                }
+                logger.debug(f"智谱 AI 响应: {response_content[:100]}...")
                 
-                return content
             else:
                 # 标准 OpenAI API
                 from llama_index.core.llms import ChatMessage
@@ -151,9 +174,34 @@ class OpenAIAdapter(BaseLLMAdapter):
                     max_tokens=max_tokens
                 )
                 
-                logger.debug(f"OpenAI 响应: {response.message.content[:100]}...")
-                
-                return response.message.content
+                response_content = response.message.content
+                # LlamaIndex 不直接返回 usage，需要从 raw_response 中提取
+                if hasattr(response, 'raw') and hasattr(response.raw, 'usage'):
+                    usage_data = {
+                        "input_tokens": response.raw.usage.prompt_tokens,
+                        "output_tokens": response.raw.usage.completion_tokens,
+                        "total_tokens": response.raw.usage.total_tokens
+                    }
+                logger.debug(f"OpenAI 响应: {response_content[:100]}...")
+            
+            # 成功执行后，记录到 Langfuse
+            latency = time.time() - start_time
+            try:
+                monitor = get_langfuse_monitor()
+                if monitor and monitor.is_enabled():
+                    monitor.trace_llm_call(
+                        model=self.model_name,
+                        messages=messages,
+                        response=response_content,
+                        usage=usage_data,
+                        latency=latency,
+                        trace_id=trace_id,
+                        metadata={"adapter": "openai", "api_base": self.api_base}
+                    )
+            except Exception as monitor_e:
+                logger.warning(f"记录到 Langfuse 失败: {monitor_e}")
+            
+            return response_content
             
         except Exception as e:
             logger.error(f"OpenAI 调用失败: {str(e)}")
@@ -326,6 +374,11 @@ class QwenAdapter(BaseLLMAdapter):
         Returns:
             响应文本
         """
+        start_time = time.time()
+        trace_id = str(uuid.uuid4())
+        response_content = ""
+        usage_data = None
+        
         try:
             from llama_index.core.llms import ChatMessage
             
@@ -341,8 +394,36 @@ class QwenAdapter(BaseLLMAdapter):
                 temperature=temperature
             )
             
-            logger.debug(f"Qwen 响应: {response.message.content[:100]}...")
-            return response.message.content
+            response_content = response.message.content
+            
+            # 尝试从 Ollama 响应中提取 usage（如果可用）
+            if hasattr(response, 'raw') and hasattr(response.raw, 'usage'):
+                usage_data = {
+                    "input_tokens": response.raw.usage.prompt_tokens,
+                    "output_tokens": response.raw.usage.completion_tokens,
+                    "total_tokens": response.raw.usage.total_tokens
+                }
+            
+            logger.debug(f"Qwen 响应: {response_content[:100]}...")
+            
+            # 成功执行后，记录到 Langfuse
+            latency = time.time() - start_time
+            try:
+                monitor = get_langfuse_monitor()
+                if monitor and monitor.is_enabled():
+                    monitor.trace_llm_call(
+                        model=self.model_name,
+                        messages=messages,
+                        response=response_content,
+                        usage=usage_data,
+                        latency=latency,
+                        trace_id=trace_id,
+                        metadata={"adapter": "qwen", "base_url": settings.OLLAMA_BASE_URL}
+                    )
+            except Exception as monitor_e:
+                logger.warning(f"记录到 Langfuse 失败: {monitor_e}")
+            
+            return response_content
             
         except Exception as e:
             logger.error(f"Qwen 调用失败: {str(e)}")
