@@ -764,6 +764,7 @@
             'product_sku': '产品SKU',
             'lead_time': '备货周期',
             'warehouse_location': '仓库位置',
+            'unit': '单位',
             
             // 价格相关
             'unit_price': '单价',
@@ -782,6 +783,12 @@
             'total_amount': '成交金额',
             'deal_date': '成交日期',
             'similarity_score': '相似度',
+            
+            // 成交记录相关
+            'deal_id': '成交ID',
+            'sales_person': '销售人员',
+            'notes': '备注',
+            'product_category': '产品品类',
             
             // 任务类型
             'inventory_query': '库存查询',
@@ -809,7 +816,6 @@
             'id': 'ID',
             'category': '品类',
             'base_price': '基准价格',
-            'unit': '单位',
             'description': '描述',
             'created_at': '创建时间',
             'updated_at': '更新时间',
@@ -818,7 +824,8 @@
             'phone': '电话',
             'email': '邮箱',
             'company': '公司',
-            'status': '状态'
+            'status': '状态',
+            'product_category': '产品品类'
         };
 
         function translateField(fieldName) {
@@ -1248,26 +1255,26 @@
                 result.data.forEach(item => {
                     html += `
                         <div class="db-inventory-item">
-                            <h4>${item.product_name}</h4>
+                            <h4>${item.product_name || '未知产品'}</h4>
                             <div class="data-row">
                                 <span class="data-label">SKU</span>
-                                <span class="data-value">${item.product_sku}</span>
+                                <span class="data-value">${item.product_sku || '-'}</span>
                             </div>
                             <div class="data-row">
                                 <span class="data-label">总库存</span>
-                                <span class="data-value">${item.stock_quantity} ${item.unit}</span>
+                                <span class="data-value">${item.stock_quantity || 0} ${item.unit || ''}</span>
                             </div>
                             <div class="data-row">
                                 <span class="data-label">可用库存</span>
-                                <span class="data-value" style="color: #4caf50;">${item.available_quantity} ${item.unit}</span>
+                                <span class="data-value" style="color: #4caf50;">${item.available_quantity || 0} ${item.unit || ''}</span>
                             </div>
                             <div class="data-row">
                                 <span class="data-label">备货周期</span>
-                                <span class="data-value">${item.lead_time}</span>
+                                <span class="data-value">${item.lead_time || '未知'}</span>
                             </div>
                             <div class="data-row">
                                 <span class="data-label">仓库</span>
-                                <span class="data-value">${item.warehouse_location}</span>
+                                <span class="data-value">${item.warehouse_location || '未知'}</span>
                             </div>
                         </div>
                     `;
@@ -1275,7 +1282,6 @@
                 
                 html += '</div>';
                 resultDiv.innerHTML = html;
-                
             } catch (error) {
                 resultDiv.innerHTML = `<div class="db-empty" style="color: #f44336;">加载失败: ${error.message}</div>`;
             }
