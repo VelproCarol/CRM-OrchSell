@@ -189,7 +189,8 @@ class OpenAIAdapter(BaseLLMAdapter):
             try:
                 monitor = get_langfuse_monitor()
                 if monitor and monitor.is_enabled():
-                    monitor.trace_llm_call(
+                    # 记录 LLM 调用追踪
+                    trace_result = monitor.trace_llm_call(
                         model=self.model_name,
                         messages=messages,
                         response=response_content,
@@ -198,6 +199,37 @@ class OpenAIAdapter(BaseLLMAdapter):
                         trace_id=trace_id,
                         metadata={"adapter": "openai", "api_base": self.api_base}
                     )
+                    
+                    # 添加评分（基于响应质量和延迟）
+                    if trace_result and trace_result.get("trace_id"):
+                        # 计算质量评分（简单基于响应长度）
+                        quality_score = min(len(response_content) / 1000, 1.0) if response_content else 0.5
+                        
+                        # 计算延迟评分（延迟越低分数越高，最大1分）
+                        latency_score = max(1.0 - latency / 30.0, 0.1)
+                        
+                        # 综合评分
+                        overall_score = (quality_score * 0.7 + latency_score * 0.3)
+                        
+                        # 添加多个评分维度
+                        monitor.add_score(
+                            trace_id=trace_result["trace_id"],
+                            name="quality",
+                            score=quality_score,
+                            comment=f"响应长度: {len(response_content)} 字符"
+                        )
+                        monitor.add_score(
+                            trace_id=trace_result["trace_id"],
+                            name="latency",
+                            score=latency_score,
+                            comment=f"响应时间: {latency:.2f} 秒"
+                        )
+                        monitor.add_score(
+                            trace_id=trace_result["trace_id"],
+                            name="overall",
+                            score=overall_score,
+                            comment=f"综合评分: 质量{quality_score:.2f} + 延迟{latency_score:.2f}"
+                        )
             except Exception as monitor_e:
                 logger.warning(f"记录到 Langfuse 失败: {monitor_e}")
             
@@ -411,7 +443,8 @@ class QwenAdapter(BaseLLMAdapter):
             try:
                 monitor = get_langfuse_monitor()
                 if monitor and monitor.is_enabled():
-                    monitor.trace_llm_call(
+                    # 记录 LLM 调用追踪
+                    trace_result = monitor.trace_llm_call(
                         model=self.model_name,
                         messages=messages,
                         response=response_content,
@@ -420,6 +453,37 @@ class QwenAdapter(BaseLLMAdapter):
                         trace_id=trace_id,
                         metadata={"adapter": "qwen", "base_url": settings.OLLAMA_BASE_URL}
                     )
+                    
+                    # 添加评分（基于响应质量和延迟）
+                    if trace_result and trace_result.get("trace_id"):
+                        # 计算质量评分（简单基于响应长度）
+                        quality_score = min(len(response_content) / 1000, 1.0) if response_content else 0.5
+                        
+                        # 计算延迟评分（延迟越低分数越高，最大1分）
+                        latency_score = max(1.0 - latency / 30.0, 0.1)
+                        
+                        # 综合评分
+                        overall_score = (quality_score * 0.7 + latency_score * 0.3)
+                        
+                        # 添加多个评分维度
+                        monitor.add_score(
+                            trace_id=trace_result["trace_id"],
+                            name="quality",
+                            score=quality_score,
+                            comment=f"响应长度: {len(response_content)} 字符"
+                        )
+                        monitor.add_score(
+                            trace_id=trace_result["trace_id"],
+                            name="latency",
+                            score=latency_score,
+                            comment=f"响应时间: {latency:.2f} 秒"
+                        )
+                        monitor.add_score(
+                            trace_id=trace_result["trace_id"],
+                            name="overall",
+                            score=overall_score,
+                            comment=f"综合评分: 质量{quality_score:.2f} + 延迟{latency_score:.2f}"
+                        )
             except Exception as monitor_e:
                 logger.warning(f"记录到 Langfuse 失败: {monitor_e}")
             

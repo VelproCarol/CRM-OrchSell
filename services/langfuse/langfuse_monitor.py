@@ -102,7 +102,7 @@ class LangFuseMonitor:
         latency: Optional[float] = None,
         trace_id: Optional[str] = None,
         user_id: Optional[str] = None
-    ) -> Optional[Any]:
+    ) -> Optional[Dict[str, Any]]:
         """
         追踪 LLM 调用
         使用 LangFuse SDK v2 API
@@ -118,7 +118,7 @@ class LangFuseMonitor:
             user_id: 用户 ID
             
         Returns:
-            generation 对象或 None
+            包含 trace_id, generation_id 和 generation 对象的字典，或 None
         """
         if not self.is_enabled():
             logger.debug("LangFuse 监控未启用，跳过追踪")
@@ -181,7 +181,14 @@ class LangFuseMonitor:
             langfuse.flush()
             
             logger.info(f"LLM 调用已记录到 LangFuse: trace={trace.id}, generation={generation.id}, tokens={usage_obj}")
-            return generation
+            
+            # 返回详细信息，方便后续添加评分
+            return {
+                "trace_id": trace.id,
+                "generation_id": generation.id,
+                "generation": generation,
+                "trace": trace
+            }
             
         except Exception as e:
             logger.error(f"记录 LLM 调用到 LangFuse 失败: {str(e)}")
@@ -265,6 +272,102 @@ class LangFuseMonitor:
             
         except Exception as e:
             logger.error(f"创建 LangFuse trace 失败: {str(e)}")
+            return None
+    
+    def add_score(
+        self,
+        trace_id: str,
+        name: str,
+        score: float,
+        comment: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Optional[Any]:
+        """
+        为指定 trace 添加评分（Score）
+        
+        Args:
+            trace_id: trace ID
+            name: 评分名称（如 "quality", "relevance", "correctness"）
+            score: 分数（通常 0-1 或 0-100）
+            comment: 评分说明
+            metadata: 额外元数据
+            
+        Returns:
+            score 对象或 None
+        """
+        if not self.is_enabled():
+            logger.debug("LangFuse 监控未启用，跳过评分")
+            return None
+        
+        try:
+            langfuse = LangFuseMonitor._client
+            
+            # 使用 SDK v2 API: score()
+            score_obj = langfuse.score(
+                traceId=trace_id,
+                name=name,
+                value=score,
+                comment=comment,
+                metadata=metadata or {}
+            )
+            
+            # 立即刷新数据到服务器
+            langfuse.flush()
+            
+            logger.info(f"Score 已记录到 LangFuse: trace={trace_id}, name={name}, score={score}")
+            return score_obj
+            
+        except Exception as e:
+            logger.error(f"记录 Score 到 LangFuse 失败: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
+    
+    def add_score_to_observation(
+        self,
+        observation_id: str,
+        name: str,
+        score: float,
+        comment: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Optional[Any]:
+        """
+        为指定 observation（generation/span）添加评分
+        
+        Args:
+            observation_id: observation ID（generation 或 span 的 ID）
+            name: 评分名称
+            score: 分数
+            comment: 评分说明
+            metadata: 额外元数据
+            
+        Returns:
+            score 对象或 None
+        """
+        if not self.is_enabled():
+            logger.debug("LangFuse 监控未启用，跳过评分")
+            return None
+        
+        try:
+            langfuse = LangFuseMonitor._client
+            
+            score_obj = langfuse.score(
+                observationId=observation_id,
+                name=name,
+                value=score,
+                comment=comment,
+                metadata=metadata or {}
+            )
+            
+            langfuse.flush()
+            
+            logger.info(f"Score 已记录到 LangFuse: observation={observation_id}, name={name}, score={score}")
+            return score_obj
+            
+        except Exception as e:
+            logger.error(f"记录 Score 到 LangFuse 失败: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
     
     def flush(self):
