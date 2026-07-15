@@ -11,6 +11,7 @@
 - **智能任务拆解器**：大模型根据客户咨询文本自主拆分标准化子任务队列
 - **事实反思校验引擎**：分层 RAG 验真，量化幻觉风险
 - **强约束输出**：Pydantic 强 Schema 约束输出，100% 固定 JSON 格式
+- **多数据库支持**：支持 SQLite / MySQL / PostgreSQL 三种数据库接入
 - **FastAPI 接口**：对外暴露 REST API，适配企业内部系统调用
 - **全链路日志**：记录任务拆解记录、工具返回值、反思校验日志
 - **智能缓存**：Redis 缓存支持，提升查询性能
@@ -24,7 +25,7 @@
 - **Agent 框架**：LlamaIndex Agent
 - **大模型**：OpenAI GPT-3.5 / Qwen-7B/14B (Ollama)
 - **Web 框架**：FastAPI
-- **数据库**：SQLite / Chroma 向量数据库 / Redis（可选）
+- **数据库**：SQLite / MySQL / PostgreSQL / Chroma 向量数据库 / Redis（可选）
 - **数据验证**：Pydantic v2
 - **测试框架**：Pytest
 - **监控**：Prometheus + LangFuse
@@ -47,6 +48,12 @@ venv\Scripts\activate  # Windows
 
 # 安装依赖
 pip install -r requirements.txt
+
+# 如果使用 MySQL，安装 pymysql
+pip install pymysql
+
+# 如果使用 PostgreSQL，安装 psycopg2
+pip install psycopg2-binary
 ```
 
 ### 2. 配置文件
@@ -66,42 +73,9 @@ OPENAI_MODEL=gpt-3.5-turbo
 LLM_MODE=qwen
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen:7b
-
-# 数据库配置
-SQLITE_DB_PATH=./storage/sqlite/sales_agent.db
-CHROMA_DB_PATH=./storage/chroma_db
-DOCS_PATH=./docs
-
-# Redis 缓存配置（可选）
-REDIS_ENABLED=false
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_DB=0
-REDIS_PASSWORD=
-
-# LangFuse 监控配置（可选）
-LANGFUSE_ENABLED=true
-LANGFUSE_HOST=http://localhost:3000
-LANGFUSE_PUBLIC_KEY=your_public_key
-LANGFUSE_SECRET_KEY=your_secret_key
-
-# Embedding 模型配置
-USE_LOCAL_EMBEDDING=true
-EMBEDDING_MODEL_PATH=./models/bge-small-zh-v1.5
-EMBEDDING_MODEL_NAME=BAAI/bge-small-zh-v1.5
 ```
 
-### 3. 初始化数据
-
-```bash
-# 初始化 SQLite 数据库和模拟数据
-python storage/init_sql.py
-
-# 初始化 Chroma 向量数据库
-python storage/init_vector_db.py
-```
-
-### 4. 启动服务
+### 3. 启动服务
 
 ```bash
 # 启动 FastAPI 服务
@@ -111,12 +85,219 @@ python main.py
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 5. 访问接口文档
+### 4. 访问接口文档
 
 启动后访问：
 - API 文档：http://localhost:8000/docs
 - 前端页面：http://localhost:8000/
 - 监控指标：http://localhost:8000/metrics（需启用 Prometheus）
+
+## 企业数据库接入
+
+### 数据库类型支持
+
+系统支持三种数据库类型，通过 `DB_TYPE` 配置切换：
+
+| 数据库类型 | 配置值 | 适用场景 |
+|-----------|--------|----------|
+| SQLite | `sqlite` | 开发测试、单机部署 |
+| MySQL | `mysql` | 企业生产环境、高并发 |
+| PostgreSQL | `postgresql` | 企业生产环境、复杂查询 |
+
+### 配置示例
+
+#### SQLite（默认）
+
+```env
+DB_TYPE=sqlite
+SQLITE_DB_PATH=./storage/sqlite/sales_agent.db
+```
+
+#### MySQL
+
+```env
+DB_TYPE=mysql
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=your_password
+MYSQL_DB=sales_agent
+```
+
+#### PostgreSQL
+
+```env
+DB_TYPE=postgresql
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_password
+POSTGRES_DB=sales_agent
+```
+
+### 数据库表结构
+
+系统需要以下四张表，可通过 `scripts/generate_crm_data.py` 生成示例数据：
+
+#### products（产品表）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| product_sku | TEXT | 产品SKU（唯一） |
+| product_name | TEXT | 产品名称 |
+| category | TEXT | 产品品类 |
+| base_price | REAL | 基准价格 |
+| unit | TEXT | 计量单位 |
+| description | TEXT | 产品描述 |
+
+#### inventory（库存表）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| product_sku | TEXT | 产品SKU（外键） |
+| product_name | TEXT | 产品名称 |
+| stock_quantity | INTEGER | 库存总量 |
+| available_quantity | INTEGER | 可用库存 |
+| reserved_quantity | INTEGER | 预留库存 |
+| lead_time | TEXT | 备货周期 |
+| warehouse_location | TEXT | 仓库位置 |
+| unit | TEXT | 计量单位 |
+
+#### customers（客户表）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| customer_id | TEXT | 客户ID（唯一） |
+| customer_name | TEXT | 客户名称 |
+| industry | TEXT | 所属行业 |
+| contact_person | TEXT | 联系人 |
+| contact_phone | TEXT | 联系电话 |
+| address | TEXT | 地址 |
+| credit_level | TEXT | 信用等级（A/B/C/D） |
+
+#### deal_records（成交记录表）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| deal_id | TEXT | 成交ID（唯一） |
+| product_sku | TEXT | 产品SKU |
+| product_name | TEXT | 产品名称 |
+| customer_id | TEXT | 客户ID |
+| customer_name | TEXT | 客户名称 |
+| industry | TEXT | 行业 |
+| quantity | INTEGER | 采购数量 |
+| unit_price | REAL | 成交单价 |
+| total_amount | REAL | 成交金额 |
+| discount_rate | REAL | 折扣率 |
+| payment_terms | TEXT | 付款条件 |
+| deal_date | TEXT | 成交日期 |
+| sales_person | TEXT | 销售人员 |
+
+### 数据与测试脚本
+
+系统提供以下脚本用于数据生成、验证和测试：
+
+#### 数据生成脚本
+
+```bash
+# 生成 CRM 数据（产品50条 + 库存50条 + 客户200条 + 成交记录1000条）
+python scripts/generate_crm_data.py
+
+# 验证数据完整性
+python scripts/verify_data.py
+```
+
+#### 调试测试脚本
+
+```bash
+# 清空缓存（切换数据模式时使用）
+python scripts/clear_cache.py
+
+# 测试数据库查询功能
+python scripts/test_db_query.py
+
+# 测试查询匹配能力
+python scripts/test_query.py
+
+# 测试 API 响应
+python scripts/test_api_response.py
+```
+
+### 接入企业自有数据库
+
+#### 步骤 1：配置数据库连接
+
+修改 `.env` 文件，设置 `DB_TYPE` 和相应的数据库连接参数：
+
+```env
+DB_TYPE=mysql  # 或 postgresql
+MYSQL_HOST=your-db-host
+MYSQL_PORT=3306
+MYSQL_USER=your-user
+MYSQL_PASSWORD=your-password
+MYSQL_DB=your-database
+```
+
+#### 步骤 2：映射企业数据表
+
+如果企业数据库表结构与系统默认结构不同，需要修改 `storage/db_connector.py` 中的查询方法：
+
+```python
+# 修改 get_inventory 方法适配企业库存表
+def get_inventory(self, product_name: str) -> Optional[Dict[str, Any]]:
+    sql = """
+        SELECT your_product_name AS product_name,
+               your_sku AS product_sku,
+               your_stock AS stock_quantity,
+               your_available AS available_quantity
+        FROM your_inventory_table
+        WHERE your_product_name LIKE ?
+        LIMIT 1
+    """
+    # ...
+```
+
+#### 步骤 3：切换到真实数据模式
+
+确保 `USE_MOCK_DATA` 设置为 `false`：
+
+```env
+USE_MOCK_DATA=false
+```
+
+#### 步骤 4：测试连接
+
+启动服务后，系统会自动验证数据库连接：
+
+```bash
+# 检查健康状态
+curl http://localhost:8000/api/health
+
+# 测试数据库查询
+curl http://localhost:8000/api/db/products
+```
+
+### 数据库连接器 API
+
+系统提供统一的数据库连接器，支持以下业务操作：
+
+| 方法 | 说明 | 参数 | 返回值 |
+|------|------|------|--------|
+| `get_inventory(product_name)` | 查询库存 | 产品名称 | 库存信息字典 |
+| `get_price_info(product_name)` | 查询价格 | 产品名称 | 价格统计信息 |
+| `get_product_list()` | 获取产品列表 | 无 | 产品列表 |
+| `get_customer_info(customer_id)` | 查询客户 | 客户ID | 客户信息字典 |
+| `get_recent_deals(product_name, limit)` | 获取成交记录 | 产品名称、数量限制 | 成交记录列表 |
+| `query(sql, params)` | 通用查询 | SQL语句、参数 | 查询结果 |
+| `execute(sql, params)` | 执行SQL | SQL语句、参数 | 受影响行数 |
+
+### 数据安全性
+
+1. **敏感信息隔离**：数据库密码通过环境变量配置，禁止硬编码
+2. **只读查询**：API接口默认仅支持查询操作，无写权限
+3. **参数化查询**：所有数据库操作使用参数化查询，防止SQL注入
+4. **连接池管理**：自动管理数据库连接，防止连接泄漏
+5. **日志脱敏**：日志中不记录敏感信息（如密码）
 
 ## 项目结构
 
@@ -166,6 +347,7 @@ CRM-sale-Agent/
 │   └── __init__.py
 │
 ├── storage/                    # 持久化存储
+│   ├── db_connector.py          # 数据库连接器（多数据库支持）
 │   ├── init_sql.py              # SQL 数据库初始化
 │   ├── init_vector_db.py        # 向量数据库初始化
 │   ├── sqlite/                  # SQLite 数据库文件
@@ -177,6 +359,14 @@ CRM-sale-Agent/
 │
 ├── frontend/                   # 前端调试页面
 │   └── index.html
+│
+├── scripts/                    # 数据管理脚本
+│   ├── generate_crm_data.py     # CRM数据批量生成
+│   ├── verify_data.py           # 数据验证
+│   ├── clear_cache.py           # 缓存清空脚本
+│   ├── test_api_response.py     # API响应测试脚本
+│   ├── test_query.py            # 查询匹配测试脚本
+│   └── test_db_query.py         # 数据库查询测试脚本
 │
 ├── tests/                      # 测试用例
 │   ├── test_agent_flow.py       # Agent 流程测试
@@ -213,40 +403,44 @@ Content-Type: application/json
 ```json
 {
   "status": "success",
-  "data": {
-    "inventory": {
-      "product_name": "工业风机",
-      "stock_quantity": 120,
-      "available_quantity": 50,
-      "lead_time": "7天"
-    },
-    "pricing": {
-      "unit_price": 8500.00,
-      "total_price": 425000.00,
-      "discount_rate": 0.05,
+  "message": "销售方案生成成功",
+  "inventory": {
+    "product_name": "工业风机",
+    "product_sku": "SKU-2024-0001",
+    "stock_quantity": 351,
+    "available_quantity": 222,
+    "lead_time": "11天",
+    "warehouse_location": "西北仓库"
+  },
+  "pricing": {
+    "unit_price": 8198.15,
+    "quantity": 50,
+    "total_price": 377114.75,
+    "discount_rate": 0.08,
+    "payment_terms": "30天账期",
+    "currency": "CNY"
+  },
+  "cases": [
+    {
+      "case_id": "CASE-2024-001",
+      "customer_name": "某制造企业",
+      "quantity": 55,
+      "deal_price": 8200.00,
       "payment_terms": "30天账期"
-    },
-    "cases": [
-      {
-        "case_id": "CASE-2024-001",
-        "customer_name": "某制造企业",
-        "quantity": 55,
-        "deal_price": 8200.00,
-        "payment_terms": "30天账期"
-      }
-    ],
-    "proposal": {
-      "summary": "基于当前库存和往期成交案例...",
-      "pricing_strategy": "定价策略说明",
-      "inventory_assurance": "库存保障说明",
-      "payment_recommendation": "付款方式建议",
-      "competitive_advantage": "竞争优势说明",
-      "next_steps": ["后续行动建议1", "后续行动建议2"],
-      "risk_warnings": ["风险提示1", "风险提示2"]
     }
+  ],
+  "proposal": {
+    "summary": "基于当前库存和往期成交案例...",
+    "pricing_strategy": "定价策略说明",
+    "inventory_assurance": "库存保障说明",
+    "payment_recommendation": "付款方式建议",
+    "competitive_advantage": "竞争优势说明",
+    "next_steps": ["后续行动建议1", "后续行动建议2"],
+    "risk_warnings": ["风险提示1", "风险提示2"]
   },
   "reflection_report": {
-    "confidence_score": 0.92,
+    "enabled": true,
+    "overall_confidence": 0.92,
     "verified_fields": ["stock_quantity", "unit_price"],
     "warnings": []
   },
@@ -256,6 +450,22 @@ Content-Type: application/json
   "product_category": "工业风机",
   "timestamp": "2024-01-20T10:30:00"
 }
+```
+
+### 数据库查询接口
+
+```bash
+# 获取产品列表
+GET /api/db/products
+
+# 获取库存信息
+GET /api/db/inventory?product_name=工业风机
+
+# 获取客户列表
+GET /api/db/customers
+
+# 获取成交记录
+GET /api/db/deals?product_name=工业风机&limit=10
 ```
 
 ### 其他接口
@@ -269,9 +479,6 @@ GET /api/stats
 
 # 工具列表
 GET /api/tools
-
-# 数据库初始化
-POST /api/init
 
 # Prometheus 监控指标
 GET /metrics
@@ -334,15 +541,34 @@ services:
     environment:
       - LLM_MODE=qwen
       - OLLAMA_BASE_URL=http://ollama:11434
+      - DB_TYPE=mysql
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=sales_agent
+      - MYSQL_PASSWORD=your_password
+      - MYSQL_DB=sales_agent
       - REDIS_ENABLED=true
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:
+      - mysql
       - redis
       - ollama
     volumes:
       - ./storage:/app/storage
       - ./logs:/app/logs
+
+  mysql:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=sales_agent
+      - MYSQL_USER=sales_agent
+      - MYSQL_PASSWORD=your_password
+    volumes:
+      - mysql_data:/var/lib/mysql
 
   redis:
     image: redis:7-alpine
@@ -359,6 +585,7 @@ services:
       - ollama_data:/root/.ollama
 
 volumes:
+  mysql_data:
   redis_data:
   ollama_data:
 ```
@@ -454,10 +681,11 @@ class MyService:
 
 1. **数据安全**：本地 Qwen 模式所有客户数据、报价文档不出服务器
 2. **密钥管理**：云端模式密钥通过环境变量隔离，禁止硬编码
-3. **模拟数据**：本项目使用模拟数据进行演示，生产环境需替换真实数据源
-4. **扩展性**：新增工具仅需实现统一工具基类，无需改写 Agent 主流程
-5. **性能优化**：建议启用 Redis 缓存以提升查询性能
-6. **监控告警**：生产环境建议启用 Prometheus 和 LangFuse 监控
+3. **企业数据库**：生产环境需配置 `DB_TYPE` 为 `mysql` 或 `postgresql`，并设置 `USE_MOCK_DATA=false`
+4. **表结构适配**：如果企业数据库表结构与系统默认不同，需修改 `storage/db_connector.py` 中的查询方法
+5. **扩展性**：新增工具仅需实现统一工具基类，无需改写 Agent 主流程
+6. **性能优化**：建议启用 Redis 缓存以提升查询性能
+7. **监控告警**：生产环境建议启用 Prometheus 和 LangFuse 监控
 
 ## 常见问题
 
@@ -465,24 +693,50 @@ class MyService:
 
 修改 `.env` 文件中的 `LLM_MODE` 配置，可选 `openai` 或 `qwen`。
 
-### 2. 如何启用缓存？
+### 2. 如何接入企业数据库？
+
+1. 设置 `DB_TYPE=mysql` 或 `DB_TYPE=postgresql`
+2. 配置相应的数据库连接参数
+3. 设置 `USE_MOCK_DATA=false`
+4. 如果表结构不同，修改 `storage/db_connector.py`
+
+### 3. 如何生成测试数据？
+
+运行 `python scripts/generate_crm_data.py` 生成 1000+ 条 CRM 数据。
+
+### 4. 如何启用缓存？
 
 设置 `REDIS_ENABLED=true` 并配置 Redis 连接信息。
 
-### 3. 如何添加新的业务文档？
+### 5. 如何添加新的业务文档？
 
 将文档（支持 .md/.txt/.pdf/.docx）放入 `docs/` 目录，然后运行：
 ```bash
 python storage/init_vector_db.py
 ```
 
-### 4. 如何查看监控指标？
+### 6. 如何查看监控指标？
 
 访问 `http://localhost:8000/metrics` 查看 Prometheus 指标。
 
-### 5. 如何调试 LLM 调用？
+### 7. 如何调试 LLM 调用？
 
 启用 LangFuse 监控，在 LangFuse 控制台查看详细调用链路。
+
+### 8. scripts/ 目录有哪些脚本？
+
+| 脚本文件 | 功能 | 使用场景 |
+|---------|------|---------|
+| `generate_crm_data.py` | 批量生成 CRM 测试数据 | 开发测试、演示数据准备 |
+| `verify_data.py` | 验证数据库数据完整性 | 数据生成后验证 |
+| `clear_cache.py` | 清空 Redis/内存缓存 | 切换数据模式时清理缓存 |
+| `test_db_query.py` | 测试数据库查询功能 | 验证数据库连接器 |
+| `test_query.py` | 测试查询匹配能力 | 调试产品名称模糊匹配 |
+| `test_api_response.py` | 测试 API 响应 | 验证销售咨询接口 |
+
+### 9. 如何使用降级方案？
+
+当 LLM 调用失败时，系统会自动切换到基于数据库数据的降级方案，无需额外配置。降级方案会根据库存、价格数据生成基础销售方案。
 
 ## 许可证
 
@@ -498,5 +752,6 @@ MIT License
 4. 添加必要的测试用例
 
 ## 联系方式
+
 QQ:582366076@qq.com
 如有问题或建议，请提交 Issue 或联系项目维护者。
