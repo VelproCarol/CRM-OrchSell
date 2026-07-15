@@ -13,7 +13,6 @@ sys.path.insert(0, str(project_root))
 
 from config.settings import settings
 from api.chat_route import create_app
-from storage import init_sql_database, init_vector_database
 
 
 def setup_logging():
@@ -50,20 +49,30 @@ def setup_logging():
 def initialize_system():
     """
     初始化系统
-    初始化数据库和向量库
+    连接企业数据库，验证连接状态
     """
     logger.info("开始初始化系统...")
     import traceback
     
     try:
-        # 初始化 SQLite 数据库
-        logger.info("初始化 SQLite 数据库...")
-        init_sql_database()
+        logger.info(f"数据库类型: {settings.DB_TYPE}")
         
-        # 初始化 Chroma 向量库
-        logger.info("初始化 Chroma 向量库...")
-        init_vector_database()
+        if settings.DB_TYPE == "mysql":
+            logger.info(f"连接 MySQL 数据库: {settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DB}")
+        elif settings.DB_TYPE == "postgresql":
+            logger.info(f"连接 PostgreSQL 数据库: {settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}")
+        else:
+            logger.info(f"连接 SQLite 数据库: {settings.SQLITE_DB_PATH}")
         
+        from storage.db_connector import get_db_connector
+        db = get_db_connector()
+        
+        test_result = db.query("SELECT 1")
+        if test_result:
+            logger.info("数据库连接成功")
+        else:
+            logger.warning("数据库连接异常")
+            
         logger.info("系统初始化完成")
         
     except Exception as e:

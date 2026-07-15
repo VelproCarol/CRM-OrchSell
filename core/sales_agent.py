@@ -300,7 +300,7 @@ class SalesAgent:
                         created_at=record.get("created_at")
                     ))
         
-        # 生成销售方案
+        # 生成销售方案（降级方案确保始终有结果）
         proposal = await self._generate_proposal(
             inventory_info=inventory_info,
             pricing_info=pricing_info,
@@ -334,7 +334,7 @@ class SalesAgent:
         query: str,
         product_category: Optional[str],
         customer_profile: Optional[CustomerProfile] = None
-    ) -> Optional[ProposalInfo]:
+    ) -> ProposalInfo:
         """
         生成销售方案
         
@@ -347,7 +347,7 @@ class SalesAgent:
             product_category: 产品品类
             
         Returns:
-            销售方案
+            销售方案（始终返回，不会为None）
         """
         try:
             # 格式化数据
@@ -373,11 +373,143 @@ class SalesAgent:
             
             # 解析响应
             proposal = self._parse_proposal(response)
-            return proposal
+            if proposal:
+                return proposal
+                
+            logger.warning("LLM返回数据解析失败，使用降级方案")
+            return self._generate_fallback_proposal(
+                inventory_info, pricing_info, cases_info, customer_id, query, product_category
+            )
             
         except Exception as e:
             logger.error(f"生成销售方案失败: {str(e)}")
-            return None
+            # 降级方案：基于已有数据生成简单的销售方案
+            return self._generate_fallback_proposal(
+                inventory_info, pricing_info, cases_info, customer_id, query, product_category
+            )
+    
+    def _generate_fallback_proposal(
+        self,
+        inventory_info: Optional[InventoryInfo],
+        pricing_info: Optional[PricingInfo],
+        cases_info: List[CaseInfo],
+        customer_id: Optional[str],
+        query: str,
+        product_category: Optional[str]
+    ) -> ProposalInfo:
+        """
+        生成降级销售方案（当LLM调用失败时使用）
+        
+        Args:
+            inventory_info: 库存信息
+            pricing_info: 价格信息
+            cases_info: 案例信息
+            customer_id: 客户ID
+            query: 客户咨询
+            product_category: 产品品类
+            
+        Returns:
+            降级销售方案
+        """
+        logger.info("生成降级销售方案")
+        
+        product_name = product_category or "产品"
+        
+        # 生成方案摘要
+        summary_parts = []
+        if inventory_info:
+            summary_parts.append(f"产品库存充足，当前可用库存 {inventory_info.available_quantity} 单位")
+        if pricing_info:
+            summary_parts.append(f"建议单价 {pricing_info.unit_price} 元，总价 {pricing_info.total_price} 元")
+            if pricing_info.discount_rate > 0:
+                summary_parts.append(f"已提供 {pricing_info.discount_rate * 100:.1f}% 折扣")
+        if cases_info:
+            summary_parts.append(f"参考了 {len(cases_info)} 个相似成交案例")
+        
+        summary = "基于当前数据，为您生成以下销售方案：" + "；".join(summary_parts) if summary_parts else \
+                  f"针对您关于{product_name}的采购需求，我们提供以下合作方案。"
+        
+        # 生成定价策略
+        pricing_strategy_parts = []
+        if pricing_info:
+            pricing_strategy_parts.append(f"基准单价：{pricing_info.unit_price} 元")
+            pricing_strategy_parts.append(f"采购数量：{pricing_info.quantity} 单位")
+            pricing_strategy_parts.append(f"总价：{pricing_info.total_price} 元")
+            if pricing_info.discount_rate > 0:
+                pricing_strategy_parts.append(f"折扣率：{pricing_info.discount_rate * 100:.1f}%")
+                pricing_strategy_parts.append(f"折扣原因：{pricing_info.discount_reason or '大客户优惠'}")
+            pricing_strategy_parts.append(f"付款条件：{pricing_info.payment_terms}")
+        
+        pricing_strategy = "\n".join(pricing_strategy_parts) if pricing_strategy_parts else \
+                          "定价策略需根据具体采购数量和付款条件进一步确认，请联系销售顾问获取详细报价。"
+        
+        # 生成库存保障
+        inventory_assurance_parts = []
+        if inventory_info:
+            inventory_assurance_parts.append(f"产品名称：{inventory_info.product_name}")
+            inventory_assurance_parts.append(f"库存总量：{inventory_info.stock_quantity} 单位")
+            inventory_assurance_parts.append(f"可用库存：{inventory_info.available_quantity} 单位")
+            inventory_assurance_parts.append(f"备货周期：{inventory_info.lead_time}")
+            if inventory_info.warehouse_location:
+                inventory_assurance_parts.append(f"发货仓库：{inventory_info.warehouse_location}")
+            
+            if inventory_info.available_quantity > 0:
+                inventory_assurance_parts.append("库存充足，可立即发货")
+            else:
+                inventory_assurance_parts.append("当前库存紧张，需安排生产")
+        
+        inventory_assurance = "\n".join(inventory_assurance_parts) if inventory_assurance_parts else \
+                             "库存信息暂不可用，请联系销售顾问确认。"
+        
+        # 生成付款建议
+        if pricing_info:
+            payment_recommendation = f"建议采用{pricing_info.payment_terms}方式结算。"
+            if "30天" in pricing_info.payment_terms:
+                payment_recommendation += "此方案适合长期合作客户，可享受30天账期。"
+            elif "60天" in pricing_info.payment_terms:
+                payment_recommendation += "此方案适合信用评级较高的客户。"
+            else:
+                payment_recommendation += "如需账期服务，请提供客户资质证明进行信用评估。"
+        else:
+            payment_recommendation = "付款方式可协商，支持款到发货、月结等多种方式。建议根据您的财务周期选择合适的付款条件。"
+        
+        # 生成竞争优势
+        competitive_advantage_parts = []
+        if inventory_info and inventory_info.available_quantity > 0:
+            competitive_advantage_parts.append("库存充足，交货周期短")
+        if pricing_info and pricing_info.discount_rate > 0:
+            competitive_advantage_parts.append("价格优惠，折扣力度大")
+        if cases_info:
+            competitive_advantage_parts.append("丰富的行业经验，成功案例多")
+        
+        competitive_advantage = "\n".join(competitive_advantage_parts) if competitive_advantage_parts else \
+                              "我们拥有专业的销售团队和完善的售后服务体系，可为您提供优质的产品和服务支持。"
+        
+        # 生成后续行动
+        next_steps = [
+            "确认采购数量和配置要求",
+            "签订正式采购合同",
+            "支付预付款或按约定方式结算",
+            "安排发货并提供物流跟踪信息",
+            "到货验收及售后服务"
+        ]
+        
+        # 生成风险提示
+        risk_warnings = []
+        if inventory_info and inventory_info.available_quantity < 10:
+            risk_warnings.append("当前库存较少，建议尽快确认订单")
+        if pricing_info and pricing_info.discount_rate > 0.15:
+            risk_warnings.append("折扣力度较大，需上级审批确认")
+        
+        return ProposalInfo(
+            summary=summary,
+            pricing_strategy=pricing_strategy,
+            inventory_assurance=inventory_assurance,
+            payment_recommendation=payment_recommendation,
+            competitive_advantage=competitive_advantage,
+            next_steps=next_steps,
+            risk_warnings=risk_warnings
+        )
     
     def _parse_proposal(self, response: str) -> Optional[ProposalInfo]:
         """

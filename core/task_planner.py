@@ -262,13 +262,29 @@ class TaskPlanner:
         
         product = product_category or "产品"
         
+        # 从查询中提取数量
+        import re
+        quantity = 1
+        numbers = re.findall(r'\d+', query)
+        if numbers:
+            quantity = int(numbers[0])
+        
+        # 提取付款条件
+        payment_terms = "款到发货"
+        if "30天" in query or "月结" in query:
+            payment_terms = "30天账期"
+        elif "60天" in query:
+            payment_terms = "60天账期"
+        elif "90天" in query:
+            payment_terms = "90天账期"
+        
         return [
             TaskPlan(
                 task_id=f"task_{uuid.uuid4().hex[:8]}",
                 task_type=Constants.TASK_INVENTORY_QUERY,
                 tool_name=Constants.TOOL_API_INVENTORY,
                 description=f"查询{product}库存情况",
-                parameters={"product_name": product},
+                parameters={"product_name": product, "quantity": quantity},
                 priority=1,
                 dependencies=[]
             ),
@@ -277,7 +293,7 @@ class TaskPlanner:
                 task_type=Constants.TASK_PRICE_QUERY,
                 tool_name=Constants.TOOL_SQL_PRICE,
                 description=f"查询{product}历史成交价格",
-                parameters={"product_name": product},
+                parameters={"product_name": product, "quantity_range": [max(1, quantity - 10), quantity + 10]},
                 priority=2,
                 dependencies=[]
             ),
@@ -286,7 +302,7 @@ class TaskPlanner:
                 task_type=Constants.TASK_CASE_RETRIEVAL,
                 tool_name=Constants.TOOL_DOC_RETRIEVE,
                 description=f"检索{product}相似成交案例",
-                parameters={"product_name": product},
+                parameters={"product_name": product, "quantity_range": [max(1, quantity - 10), quantity + 10]},
                 priority=2,
                 dependencies=[]
             ),
@@ -295,7 +311,7 @@ class TaskPlanner:
                 task_type=Constants.TASK_PRICE_CALCULATION,
                 tool_name=Constants.TOOL_CALCULATOR,
                 description="计算最终报价和毛利",
-                parameters={},
+                parameters={"quantity": quantity, "payment_terms": payment_terms},
                 priority=3,
                 dependencies=["inventory_query", "price_query"]
             )

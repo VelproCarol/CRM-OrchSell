@@ -4,6 +4,7 @@
 """
 from typing import Dict, Any, Optional
 import random
+from datetime import datetime
 from loguru import logger
 
 from tools.base_tool import BaseTool
@@ -92,9 +93,12 @@ class ApiInventoryTool(BaseTool):
             if not product_name:
                 return self._handle_error(ValueError("产品名称不能为空"))
             
-            # 尝试从缓存获取数据
+            # 尝试从缓存获取数据（真实模式下不使用旧缓存）
             cache_manager = get_cache_manager()
-            cached_data = cache_manager.get_inventory(product_name)
+            cached_data = None
+            if settings.USE_MOCK_DATA:
+                cached_data = cache_manager.get_inventory(product_name)
+            
             if cached_data:
                 logger.info(f"从缓存获取库存数据，产品: {product_name}")
                 inventory_data = cached_data
@@ -163,38 +167,40 @@ class ApiInventoryTool(BaseTool):
     
     async def _real_api_call(self, product_name: str) -> Dict[str, Any]:
         """
-        实际 API 调用（需要配置真实 CRM 接口）
+        从企业数据库查询库存
         
         Args:
             product_name: 产品名称
             
         Returns:
-            API 返回的库存数据
+            库存数据
         """
-        # TODO: 实现真实 CRM 接口调用
-        # 示例代码（需要配置 CRM_API_URL 和 CRM_API_KEY）
-        """
-        import httpx
+        from storage.db_connector import get_db_connector
         
-        api_url = settings.CRM_API_URL
-        api_key = settings.CRM_API_KEY
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{api_url}/inventory",
-                params={"product_name": product_name},
-                headers={"Authorization": f"Bearer {api_key}"},
-                timeout=self.timeout
-            )
+        try:
+            db = get_db_connector()
+            inventory_data = db.get_inventory(product_name)
             
-            if response.status_code == 200:
-                return response.json()
+            if inventory_data:
+                result = {
+                    "product_name": inventory_data.get("product_name"),
+                    "product_sku": inventory_data.get("product_sku"),
+                    "stock_quantity": inventory_data.get("stock_quantity", 0),
+                    "available_quantity": inventory_data.get("available_quantity", 0),
+                    "reserved_quantity": inventory_data.get("reserved_quantity", 0),
+                    "lead_time": inventory_data.get("lead_time", "需询价"),
+                    "warehouse_location": inventory_data.get("warehouse_location", "未知"),
+                    "unit": inventory_data.get("unit", "未知"),
+                    "query_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                return result
             else:
-                raise Exception(f"API调用失败: {response.status_code}")
-        """
-        
-        # 当前返回模拟数据
-        return self._mock_api_call(product_name)
+                logger.warning(f"未找到产品 {product_name} 的库存数据，返回默认值")
+                return self._mock_api_call(product_name)
+                
+        except Exception as e:
+            logger.error(f"数据库库存查询失败: {str(e)}")
+            return self._mock_api_call(product_name)
     
     def _get_parameters_schema(self) -> Dict[str, Any]:
         """

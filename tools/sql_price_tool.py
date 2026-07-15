@@ -96,15 +96,10 @@ class SqlPriceTool(BaseTool):
         Returns:
             价格数据字典
         """
-        # 检查数据库是否存在
-        if not self.db_path.exists():
-            logger.warning(f"数据库不存在: {self.db_path}, 返回模拟数据")
-            return self._get_mock_price_data(product_name)
+        from storage.db_connector import get_db_connector
         
         try:
-            # 连接数据库
-            conn = sqlite3.connect(str(self.db_path))
-            cursor = conn.cursor()
+            db = get_db_connector()
             
             # 构建查询条件
             conditions = ["product_name LIKE ?"]
@@ -130,37 +125,33 @@ class SqlPriceTool(BaseTool):
                 WHERE {(" AND ").join(conditions)}
             """
             
-            cursor.execute(query, params)
-            result = cursor.fetchone()
+            results = db.query(query, params)
             
-            # 查询具体成交记录（用于参考）
-            detail_query = f"""
-                SELECT 
-                    deal_id,
-                    customer_name,
-                    quantity,
-                    unit_price,
-                    total_amount,
-                    discount_rate,
-                    payment_terms,
-                    deal_date
-                FROM deal_records
-                WHERE {(" AND ").join(conditions)}
-                ORDER BY deal_date DESC
-                LIMIT 5
-            """
-            
-            cursor.execute(detail_query, params)
-            details = cursor.fetchall()
-            
-            conn.close()
-            
-            if result and result[0]:
-                avg_price = result[0]
-                min_price = result[1]
-                max_price = result[2]
-                avg_discount = result[3] or 0
-                deal_count = result[4]
+            if results and results[0]["avg_price"] is not None:
+                avg_price = results[0]["avg_price"]
+                min_price = results[0]["min_price"]
+                max_price = results[0]["max_price"]
+                avg_discount = results[0]["avg_discount"] or 0
+                deal_count = results[0]["deal_count"]
+                
+                # 查询具体成交记录（用于参考）
+                detail_query = f"""
+                    SELECT 
+                        deal_id,
+                        customer_name,
+                        quantity,
+                        unit_price,
+                        total_amount,
+                        discount_rate,
+                        payment_terms,
+                        deal_date
+                    FROM deal_records
+                    WHERE {(" AND ").join(conditions)}
+                    ORDER BY deal_date DESC
+                    LIMIT 5
+                """
+                
+                details = db.query(detail_query, params)
                 
                 # 构建返回数据
                 price_data = {
@@ -175,14 +166,14 @@ class SqlPriceTool(BaseTool):
                     "time_range": time_range,
                     "recent_deals": [
                         {
-                            "deal_id": row[0],
-                            "customer_name": row[1],
-                            "quantity": row[2],
-                            "unit_price": float(row[3]),
-                            "total_amount": float(row[4]),
-                            "discount_rate": float(row[5]),
-                            "payment_terms": row[6],
-                            "deal_date": row[7]
+                            "deal_id": row["deal_id"],
+                            "customer_name": row["customer_name"],
+                            "quantity": row["quantity"],
+                            "unit_price": float(row["unit_price"]),
+                            "total_amount": float(row["total_amount"]),
+                            "discount_rate": float(row["discount_rate"]),
+                            "payment_terms": row["payment_terms"],
+                            "deal_date": row["deal_date"]
                         }
                         for row in details
                     ]
@@ -193,7 +184,7 @@ class SqlPriceTool(BaseTool):
                 logger.warning(f"未找到产品 {product_name} 的成交记录")
                 return self._get_mock_price_data(product_name)
                 
-        except sqlite3.Error as e:
+        except Exception as e:
             logger.error(f"数据库查询失败: {str(e)}")
             return self._get_mock_price_data(product_name)
     

@@ -42,6 +42,23 @@ def init_sql_database():
         )
     """)
     
+    # 创建库存表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS inventory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_sku TEXT UNIQUE NOT NULL,
+            product_name TEXT NOT NULL,
+            stock_quantity INTEGER DEFAULT 0,
+            available_quantity INTEGER DEFAULT 0,
+            reserved_quantity INTEGER DEFAULT 0,
+            lead_time TEXT,
+            warehouse_location TEXT,
+            unit TEXT,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_sku) REFERENCES products(product_sku)
+        )
+    """)
+    
     # 创建历史成交订单表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS deal_records (
@@ -99,6 +116,26 @@ def init_sql_database():
             products_data
         )
         logger.info(f"插入 {len(products_data)} 个产品数据")
+    
+    # 插入模拟库存数据
+    inventory_data = [
+        ("IF-2024-001", "工业风机", 120, 50, 70, "7天", "华东仓库", "台"),
+        ("CP-2024-002", "离心泵", 80, 30, 50, "10天", "华南仓库", "台"),
+        ("CM-2024-003", "压缩机", 45, 20, 25, "15天", "华北仓库", "台"),
+        ("EM-2024-004", "电机", 200, 150, 50, "5天", "华东仓库", "台"),
+        ("VL-2024-005", "阀门", 500, 400, 100, "3天", "华南仓库", "个"),
+        ("BL-2024-006", "锅炉", 15, 5, 10, "30天", "华北仓库", "台"),
+        ("TN-2024-007", "变压器", 30, 15, 15, "20天", "华东仓库", "台"),
+        ("SW-2024-008", "开关柜", 25, 10, 15, "25天", "华南仓库", "台")
+    ]
+    
+    cursor.execute("SELECT COUNT(*) FROM inventory")
+    if cursor.fetchone()[0] == 0:
+        cursor.executemany(
+            "INSERT INTO inventory (product_sku, product_name, stock_quantity, available_quantity, reserved_quantity, lead_time, warehouse_location, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            inventory_data
+        )
+        logger.info(f"插入 {len(inventory_data)} 个库存数据")
     
     # 插入模拟成交记录数据
     deal_records_data = generate_mock_deal_records()
