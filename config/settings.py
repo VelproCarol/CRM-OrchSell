@@ -29,7 +29,26 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = Field(default="qwen:7b", description="Qwen模型名称")
     
     # ==================== 数据库配置 ====================
+    # 数据库类型: sqlite | mysql | postgresql
+    DB_TYPE: str = Field(default="sqlite", description="数据库类型选择")
+    
+    # SQLite 配置（默认开发环境）
     SQLITE_DB_PATH: str = Field(default="./storage/sqlite/sales_agent.db", description="SQLite数据库路径")
+    
+    # MySQL 配置（企业生产环境）
+    MYSQL_HOST: str = Field(default="localhost", description="MySQL服务器地址")
+    MYSQL_PORT: int = Field(default=3306, description="MySQL端口")
+    MYSQL_USER: str = Field(default="root", description="MySQL用户名")
+    MYSQL_PASSWORD: Optional[str] = Field(default=None, description="MySQL密码")
+    MYSQL_DB: str = Field(default="sales_agent", description="MySQL数据库名")
+    
+    # PostgreSQL 配置（企业生产环境）
+    POSTGRES_HOST: str = Field(default="localhost", description="PostgreSQL服务器地址")
+    POSTGRES_PORT: int = Field(default=5432, description="PostgreSQL端口")
+    POSTGRES_USER: str = Field(default="postgres", description="PostgreSQL用户名")
+    POSTGRES_PASSWORD: Optional[str] = Field(default=None, description="PostgreSQL密码")
+    POSTGRES_DB: str = Field(default="sales_agent", description="PostgreSQL数据库名")
+    
     CHROMA_DB_PATH: str = Field(default="./storage/chroma_db", description="Chroma向量数据库路径")
     DOCS_PATH: str = Field(default="./docs", description="业务文档路径")
     
@@ -75,6 +94,9 @@ class Settings(BaseSettings):
     REFLECTION_ENABLED: bool = Field(default=True, description="是否启用反思验真")
     REFLECTION_CONFIDENCE_THRESHOLD: float = Field(default=0.8, description="反思验真置信度阈值")
     
+    # ==================== 模拟数据配置 ====================
+    USE_MOCK_DATA: bool = Field(default=False, description="是否使用模拟数据")
+    
     # ==================== Embedding 模型配置 ====================
     EMBEDDING_MODEL_PATH: str = Field(
         default="./models/bge-small-zh-v1.5",
@@ -117,6 +139,14 @@ class Settings(BaseSettings):
             raise ValueError(f"LLM_MODE 必须是 {allowed_modes} 之一")
         return v.lower()
     
+    @validator("DB_TYPE")
+    def validate_db_type(cls, v):
+        """验证数据库类型"""
+        allowed_types = ["sqlite", "mysql", "postgresql"]
+        if v.lower() not in allowed_types:
+            raise ValueError(f"DB_TYPE 必须是 {allowed_types} 之一")
+        return v.lower()
+    
     @validator("LOG_LEVEL")
     def validate_log_level(cls, v):
         """验证日志级别"""
@@ -142,6 +172,22 @@ class Settings(BaseSettings):
         
         return str(path)
     
+    def get_database_url(self) -> str:
+        """
+        根据配置生成数据库连接URL
+        
+        Returns:
+            数据库连接URL
+        """
+        if self.DB_TYPE == "mysql":
+            password = f":{self.MYSQL_PASSWORD}" if self.MYSQL_PASSWORD else ""
+            return f"mysql+pymysql://{self.MYSQL_USER}{password}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DB}"
+        elif self.DB_TYPE == "postgresql":
+            password = f":{self.POSTGRES_PASSWORD}" if self.POSTGRES_PASSWORD else ""
+            return f"postgresql://{self.POSTGRES_USER}{password}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        else:
+            return f"sqlite:///{self.SQLITE_DB_PATH}"
+
     class Config:
         """Pydantic配置"""
         env_file = ".env"
