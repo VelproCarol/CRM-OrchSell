@@ -1,0 +1,164 @@
+# ===========================================
+# CRM Sale Agent Docker Compose
+# 一键部署销售 Agent 服务
+# ===========================================
+
+services:
+  # ==================== 主应用服务 ====================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: crm-sale-agent
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - LLM_MODE=${LLM_MODE:-openai}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_API_BASE=${OPENAI_API_BASE:-https://open.bigmodel.cn/api/paas/v4/}
+      - OPENAI_MODEL=${OPENAI_MODEL:-glm-5.1}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen:7b}
+      - DB_TYPE=${DB_TYPE:-sqlite}
+      - SQLITE_DB_PATH=/app/storage/sqlite/sales_agent.db
+      - CHROMA_DB_PATH=/app/storage/chroma_db
+      - DOCS_PATH=/app/docs
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - API_DEBUG=${API_DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FILE=/app/logs/sales_agent.log
+      - TOOL_TIMEOUT=${TOOL_TIMEOUT:-30}
+      - REFLECTION_ENABLED=${REFLECTION_ENABLED:-true}
+      - REFLECTION_CONFIDENCE_THRESHOLD=${REFLECTION_CONFIDENCE_THRESHOLD:-0.8}
+      - USE_MOCK_DATA=${USE_MOCK_DATA:-true}
+      - EMBEDDING_MODEL_PATH=/app/models/bge-small-zh-v1.5
+      - EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME:-BAAI/bge-small-zh-v1.5}
+      - USE_LOCAL_EMBEDDING=${USE_LOCAL_EMBEDDING:-true}
+      # Redis 配置（如果启用）
+      - REDIS_ENABLED=${REDIS_ENABLED:-false}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Langfuse 监控配置
+      - LANGFUSE_ENABLED=${LANGFUSE_ENABLED:-false}
+      - LANGFUSE_HOST=${LANGFUSE_HOST:-http://langfuse:3000}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
+    volumes:
+      # 持久化存储
+      - sqlite_data:/app/storage/sqlite
+      - chroma_data:/app/storage/chroma_db
+      - logs_data:/app/logs
+      - models_data:/app/models
+      - docs_data:/app/docs
+      # 挂载配置文件（可选）
+      - ./config:/app/config:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '2.0'
+        reservations:
+          memory: 1g
+          cpus: '1.0'
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # ==================== Redis 缓存服务（可选） ====================
+  redis:
+    image: redis:7-alpine
+    container_name: crm-sale-agent-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+
+  # ==================== Langfuse 监控服务（可选） ====================
+  langfuse:
+    image: ghcr.io/langfuse/langfuse:latest
+    container_name: crm-sale-agent-langfuse
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@langfuse-db:5432/langfuse
+      - SECRET_KEY=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production}
+    volumes:
+      - langfuse_data:/app/data
+    networks:
+      - crm-network
+    depends_on:
+      - langfuse-db
+    profiles:
+      - monitoring
+
+  # ==================== Langfuse 数据库 ====================
+  langfuse-db:
+    image: postgres:16-alpine
+    container_name: crm-sale-agent-langfuse-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=langfuse
+    volumes:
+      - langfuse_db_data:/var/lib/postgresql/data
+    networks:
+      - crm-network
+    profiles:
+      - monitoring
+
+# ==================== 数据卷 ====================
+volumes:
+  sqlite_data:
+    driver: local
+  chroma_data:
+    driver: local
+  logs_data:
+    driver: local
+  models_data:
+    driver: local
+  docs_data:
+    driver: local
+  redis_data:
+    driver: local
+  langfuse_data:
+    driver: local
+  langfuse_db_data:
+    driver: local
+
+# ==================== 网络 ====================
+networks:
+  crm-network:
+    driver: bridge
+    name: crm-sale-agent-network
