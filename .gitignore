@@ -173,6 +173,6 @@ debug-*.md
 *.pid.lock
 
 .trae/
-docs/   # 忽略 docs 文件夹
+docs/*   # 忽略 docs 文件夹
 
 test/eval/reports/*
