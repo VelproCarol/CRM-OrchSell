@@ -1,0 +1,65 @@
+# ===========================================
+# CRM Sale Agent Docker Ignore
+# 排除不需要进入 Docker 镜像的文件
+# ===========================================
+
+# Python 虚拟环境
+.venv/
+venv/
+env/
+
+# Python 编译产物
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+
+# 环境变量文件（安全）
+.env
+.env.*
+!.env.sample
+
+# 日志文件
+logs/
+*.log
+*.log.*
+
+# 数据库文件（通过卷挂载）
+storage/sqlite/
+storage/chroma_db/
+
+# 模型文件（大文件，通过卷挂载）
+models/
+
+# 测试和评估文件（可选，保留可减小镜像）
+tests/
+tests/eval/
+
+# IDE 配置
+.vscode/
+.idea/
+
+# Git 文件
+.git/
+.gitignore
+
+# Docker 相关文件
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# 临时文件
+*.tmp
+*.bak
+.DS_Store
+
+# 文档文件（可选，通过卷挂载）
+docs/
+
+# 配置备份
+.trae/
+
+# 缓存文件
+.pytest_cache/
+.coverage
+*.egg-info/
