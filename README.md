@@ -37,8 +37,8 @@
 
 ```bash
 # 克隆项目
-git clone <repository_url>
-cd CRM-sale-Agent
+git clone https://github.com/VelproCarol/CRM-OrchSell.git
+cd CRM-OrchSell
 
 # 安装依赖
 pip install -r requirements.txt
@@ -78,7 +78,7 @@ docker compose logs -f app
 ## 项目目录结构
 
 ```
-CRM-sale-Agent/
+CRM-OrchSell/
 ├── config/                     # 全局配置
 │   └── settings.py               # 配置管理与常量定义
 ├── core/                       # Agent 核心编排层
