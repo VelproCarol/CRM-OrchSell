@@ -26,7 +26,7 @@ from tests.eval.test_dataset import TEST_CASES, REFLECTION_TEST_CASES, TOOL_TEST
 
 async def main():
     print("=" * 60)
-    print("  CRM-sale-Agent 量化评估系统演示")
+    print("  CRM-OrchSell 量化评估系统演示")
     print("=" * 60)
     print()
 

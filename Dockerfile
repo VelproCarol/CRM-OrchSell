@@ -1,5 +1,5 @@
 # ===========================================
-# CRM Sale Agent Dockerfile
+# CRM-OrchSell Dockerfile
 # 多阶段构建，优化镜像体积
 # ===========================================
 
@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 # ============ 阶段 2: 运行时环境 ============
 FROM python:3.10-slim AS runtime
 
-LABEL maintainer="CRM Sale Agent Team"
+LABEL maintainer="CRM-OrchSell Team"
 LABEL description="可编排多工具销售任务拆解 Agent"
 LABEL version="1.0.0"
 

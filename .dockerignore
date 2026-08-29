@@ -1,5 +1,5 @@
 # ===========================================
-# CRM Sale Agent Docker Ignore
+# CRM-OrchSell Docker Ignore
 # 排除不需要进入 Docker 镜像的文件
 # ===========================================
 

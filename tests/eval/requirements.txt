@@ -1,4 +1,4 @@
-# CRM-sale-Agent 量化评估依赖
+# CRM-OrchSell 量化评估依赖
 
 # 核心依赖
 pytest>=7.0.0

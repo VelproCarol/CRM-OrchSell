@@ -1,5 +1,5 @@
 # ===========================================
-# CRM Sale Agent Docker Compose
+# CRM-OrchSell Docker Compose
 # 一键部署销售 Agent 服务
 # ===========================================
 
@@ -10,7 +10,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runtime
-    container_name: crm-sale-agent
+    container_name: crm-orchsell
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -83,7 +83,7 @@ services:
   # ==================== Redis 缓存服务（可选） ====================
   redis:
     image: redis:7-alpine
-    container_name: crm-sale-agent-redis
+    container_name: crm-orchsell-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -106,7 +106,7 @@ services:
   # ==================== Langfuse 监控服务（可选） ====================
   langfuse:
     image: ghcr.io/langfuse/langfuse:latest
-    container_name: crm-sale-agent-langfuse
+    container_name: crm-orchsell-langfuse
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -125,7 +125,7 @@ services:
   # ==================== Langfuse 数据库 ====================
   langfuse-db:
     image: postgres:16-alpine
-    container_name: crm-sale-agent-langfuse-db
+    container_name: crm-orchsell-langfuse-db
     restart: unless-stopped
     environment:
       - POSTGRES_USER=postgres
@@ -161,4 +161,4 @@ volumes:
 networks:
   crm-network:
     driver: bridge
-    name: crm-sale-agent-network
+    name: crm-orchsell-network

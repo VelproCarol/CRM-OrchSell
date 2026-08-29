@@ -225,7 +225,7 @@ class EvaluationRunner:
     def print_summary(self, report: FullEvalReport):
         """打印评估摘要"""
         print("\n" + "=" * 60)
-        print("  CRM-sale-Agent 量化评估报告")
+        print("  CRM-OrchSell 量化评估报告")
         print("=" * 60)
         print(f"  时间: {report.generated_at}")
         print(f"  综合评分: {report.overall_score.total_score}/100")
@@ -250,7 +250,7 @@ class EvaluationRunner:
 async def main_async():
     """异步主函数"""
     parser = argparse.ArgumentParser(
-        description="CRM-sale-Agent 量化评估工具",
+        description="CRM-OrchSell 量化评估工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:

@@ -1,5 +1,5 @@
 """
-CRM-sale-Agent 项目说明文档 PDF 生成脚本
+CRM-OrchSell 项目说明文档 PDF 生成脚本
 生成包含架构图、核心难点、量化成果、性能对比的 PDF 总览文档
 """
 import os
@@ -350,7 +350,7 @@ def header_footer(canvas, doc):
     # 页眉
     canvas.setFont(CJK, 8)
     canvas.setFillColor(GRAY_TEXT)
-    canvas.drawString(0.75 * inch, PAGE_H - 0.4 * inch, "CRM-sale-Agent 项目说明文档")
+    canvas.drawString(0.75 * inch, PAGE_H - 0.4 * inch, "CRM-OrchSell 项目说明文档")
     canvas.drawRightString(PAGE_W - 0.75 * inch, PAGE_H - 0.4 * inch, "v1.0 | 2026-08-18")
     canvas.setStrokeColor(BORDER)
     canvas.setLineWidth(0.5)
@@ -388,7 +388,7 @@ def build_pdf(output_path):
 
     # ============ 封面 ============
     story.append(Spacer(1, 2.5 * inch))
-    story.append(Paragraph("CRM-sale-Agent", styles['cover_title']))
+    story.append(Paragraph("CRM-OrchSell", styles['cover_title']))
     story.append(Spacer(1, 0.3 * inch))
     story.append(Paragraph("可编排多工具销售任务拆解 Agent", styles['cover_subtitle']))
     story.append(Paragraph("B2B 智能销售 Agent 系统", styles['cover_subtitle']))
@@ -406,7 +406,7 @@ def build_pdf(output_path):
     story.append(Divider(CONTENT_W * 0.3, height=2, color=ACCENT))
 
     story.append(Paragraph(
-        "CRM-sale-Agent 是面向 B2B 实体产品销售场景的智能 Agent 系统。系统通过 LLM 驱动的任务拆解、"
+        "CRM-OrchSell 是面向 B2B 实体产品销售场景的智能 Agent 系统。系统通过 LLM 驱动的任务拆解、"
         "多工具串并行调度、RAG 事实验真机制，在 15 秒内输出可信、结构化、可直接用于客户沟通的销售方案。"
         "核心链路为：<b>任务拆解 → 多工具调度 → 反思验真 → 方案生成</b>，全程基于真实业务数据，"
         "通过三层反思验真引擎量化并控制 LLM 幻觉风险。", styles['body']))
@@ -745,7 +745,7 @@ def build_pdf(output_path):
     story.append(Spacer(1, 20))
     story.append(Divider(CONTENT_W, height=1, color=BORDER))
     story.append(Paragraph(
-        "本文档由 CRM-sale-Agent 项目团队基于项目源码和文档自动生成。"
+        "本文档由 CRM-OrchSell 项目团队基于项目源码和文档自动生成。"
         "详细文档请参阅 docs/ 目录下的需求分析文档、PRD、架构图文档、测试文档、技术文档。",
         styles['small']))
 
@@ -755,5 +755,5 @@ def build_pdf(output_path):
 
 
 if __name__ == '__main__':
-    output = os.path.join(os.path.dirname(os.path.abspath(__file__)), "CRM-sale-Agent项目说明文档.pdf")
+    output = os.path.join(os.path.dirname(os.path.abspath(__file__)), "CRM-OrchSell项目说明文档.pdf")
     build_pdf(output)
